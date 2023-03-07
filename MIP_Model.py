@@ -69,13 +69,16 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
     m.addConstrs(gp.quicksum(y[j, m] for m in m_points) == gp.quicksum(z[r, j] for r in robots) for j in customers)
     #Eq(10)
     m.addConstrs(gp.quicksum(z[r, j] for r in robots) <= 1 for j in customers)
-    #Eq(11) -> input과 결합
-    for info in zero_infos[0]:
-        m.addConstr(x[info[0],info[1]] == 0)
-    for info in zero_infos[1]:
-        m.addConstr(y[info[0], info[1]] == 0)
-    for info in zero_infos[2]:
-        m.addConstr(z[info[0], info[1]] == 0)
+    #Eq(11)
+    m.addConstrs(gp.quicksum(z[r, j] for j in customers) <= 1 for r in robots)
+    #Eq(12) -> input과 결합
+    if zero_infos != []:
+        for info in zero_infos[0]:
+            m.addConstr(x[info[0],info[1]] == 0)
+        for info in zero_infos[1]:
+            m.addConstr(y[info[0], info[1]] == 0)
+        for info in zero_infos[2]:
+            m.addConstr(z[info[0], info[1]] == 0)
     #출력 설정
     if print_gurobi == False:
         m.setParam(GRB.Param.OutputFlag, 0)
@@ -109,6 +112,11 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
     y_list = y_list.reshape(driver_num, customer_num)
     print(y_list)
     """
+
+    #res_x = solution_var(m, 'x')
+    #print(m.getVarByName('x'))
+    #test = [var for var in m.getVars() if "x" in var.VarName]
+    #print(test)
     try:
         print('Obj val: %g' % m.objVal, "Solver", solver)
         res_x = solution_var(m,'x')
@@ -122,9 +130,16 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
 
 def solution_var(model,name):
     res = []
-    count = 0
-    for i in model.getVarByName(name): #이름이 제대로 풀력 되는지 확인 필요
-        if i.X == 1:
-            res.append(count)
-        count += 1
+    for variable in [var for var in model.getVars() if name in var.VarName]: #이름이 제대로 풀력 되는지 확인 필요
+        if variable.X == 1:
+            test = variable.VarName
+            i, _, j = (
+                test.replace(name, "")
+                .replace("[", "")
+                .replace("]", "")
+                .partition(",")
+            )
+            #res.append(count)
+            #print(i,_, j, variable.VarName)
+            res.append([int(i), int(j)])
     return res

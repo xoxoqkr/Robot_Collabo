@@ -288,7 +288,7 @@ def FLT_Calculate(customer_in_order, customers, route, p2, except_names , M = 10
         return True, ftds
 
 
-def RiderGenerator(env, Rider_dict, Platform, Store_dict, Customer_dict, capacity = 3, speed = 1, working_duration = 120, interval = 1, runtime = 1000,
+def RiderGenerator(env, Rider_dict, Platform, Store_dict, Customer_dict, Robot_dict, capacity = 3, speed = 1, working_duration = 120, interval = 1, runtime = 1000,
                    gen_num = 10, history = None, freedom = True, score_type = 'simple', wait_para = False, uncertainty = False, exp_error = 1, exp_WagePerHr = 9000,
                    platform_recommend = False, input_order_select_type = None, bundle_construct = False,  p2 = 1.5, ite = 1, dir = None ):
     """
@@ -330,7 +330,7 @@ def RiderGenerator(env, Rider_dict, Platform, Store_dict, Customer_dict, capacit
             this_loc = locs[rider_num]
         except:
             this_loc = [25,25]
-        single_rider = re_A1_class.Rider(env,rider_num,Platform, Customer_dict,  Store_dict, start_time = env.now ,speed = speed, end_t = working_duration, \
+        single_rider = re_A1_class.Rider(env,rider_num,Platform, Customer_dict,  Store_dict, Robot_dict, start_time = env.now ,speed = speed, end_t = working_duration, \
                                    capacity = capacity, freedom=freedom, order_select_type = input_order_select_type, wait_para =wait_para, \
                                       uncertainty = uncertainty, exp_error = exp_error, platform_recommend = platform_recommend,
                                          bundle_construct= bundle_construct, loc = this_loc)
@@ -521,7 +521,7 @@ def ReadCSV(csv_dir, interval_index = None):
         datas[-1].append(0)
     return datas
 
-def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed = 1, unit_fee = 110, fee_type = 'linear'):
+def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed = 1, unit_fee = 110, fee_type = 'linear', warm_up_time = 20):
     """
     Generate customer order
     :param env: Simpy Env
@@ -549,6 +549,9 @@ def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed
         if platform != None:
             task_index = len(platform.platform)
             task = GenSingleOrder(task_index, order)
+            task.gen_t = env.now
+            if env.now < warm_up_time:
+                task.freeze = False
             #print(type(task), type(platform))
             #input('확인')
             platform.platform[task_index] = task

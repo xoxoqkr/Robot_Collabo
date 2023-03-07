@@ -47,7 +47,8 @@ def CalculateS_ijm(driver_set, customers_set, middle_point_set, rider_names, cus
                 #print(len(res[i_index][j_index]))
                 #input('길이 확인')
                 middle = middle_point_set[m]
-                rider_last_node = rider.visited_route[-1][2]
+                #rider_last_node = rider.visited_route[-1][2]
+                rider_last_node = rider.exp_end_location
                 org = distance(rider_last_node[0],rider_last_node[1],customer.store_loc[0],customer.store_loc[1]) + distance(customer.store_loc[0],customer.store_loc[1],customer.location[0],customer.location[1])
                 rev = distance(rider_last_node[0],rider_last_node[1],middle[0],middle[1]) + distance(middle[0],middle[1],customer.location[0],customer.location[1])
                 res[i_index,j_index,m] = round(org - rev ,4)
@@ -67,7 +68,8 @@ def CalculateV_ijm(driver_set, customers_set, middle_point_set, rider_names, cus
             customer = customers_set[j]
             for m in range(len(res[i_index][j_index])):
                 middle = middle_point_set[m]
-                rider_last_node = rider.visited_route[-1][2]
+                #rider_last_node = rider.visited_route[-1][2]
+                rider_last_node = rider.exp_end_location
                 dist = distance(rider_last_node[0],rider_last_node[1],middle[0],middle[1]) + distance(middle[0],middle[1],customer.location[0],customer.location[1])
                 val = customer.fee*r - 150*dist/rider.speed
                 res[i_index,j_index,m] = round(val ,4)
@@ -111,35 +113,40 @@ def CalculateRo(riders,rider_names):
         res.append(0)
         count += 1
     times.sort(key=operator.itemgetter(2))
-    count = 0
+    count = 1
     for info in times:
         res[info[0]] = count
         count += 1
     return res
 
-def CalculateTargetNames(driver_set, customers_set, robots, t_now, interval= 5):
+def CalculateTargetNames(driver_set, customers_set, robots, platforms, t_now, interval= 5):
     rider_names = []
     customer_names = []
     robot_names = []
     for rider_name in driver_set:
-        if driver_set[rider_name].exp_end_time < t_now + interval:
+        driver = driver_set[rider_name]
+        if driver.exp_end_time < t_now + interval and len(driver.picked_orders) < driver.max_order_num:
             rider_names.append(rider_name)
     for customer_name in customers_set:
-        if customers_set[customer_name].time_info[1] != None and customers_set[customer_name].cancel == False:
+        if customers_set[customer_name].time_info[1] == None and customers_set[customer_name].cancel == False:
             customer_names.append(customer_name)
+    #for task_name in platforms.platforms:
+    #    task = platforms.platforms[task_name]
+    #    if task.picked == False:
+    #        customer_names.append(task_name)
     for robot_name in robots:
         if robots[robot_name].idle == True:
             robot_names.append(robot_name)
     return rider_names, customer_names, robot_names
 
 
-def Platform_process5(env, platform, orders, riders, robots, interval = 5, end_t = 100):
+def Platform_process5(env, platform, orders, riders, robots, interval = 5, end_t = 100, warm_up_time = 20):
     f = open("loop시간정보.txt", 'a')
     locat_t = time.localtime(time.time())
     f.write('시간;{};라이더수;{};'.format(locat_t,len(riders)))
     f.write('\n')
     f.close()
-    yield env.timeout(5) #warm-up time
+    yield env.timeout(warm_up_time) #warm-up time
     #middle point 설정(지금은 격자로 설정)
     middle_point_set = []
     for i in list(range(1, 50, 6)):
@@ -148,21 +155,58 @@ def Platform_process5(env, platform, orders, riders, robots, interval = 5, end_t
     while env.now <= end_t:
         #1 문제 풀이
         t_now = env.now
-        rider_names, customer_names, robot_names = CalculateTargetNames(riders, orders, robots, t_now, interval=interval)
+        rider_names, customer_names, robot_names = CalculateTargetNames(riders, orders, robots, platform, t_now, interval=interval)
         ro = CalculateRo(riders, rider_names)
         input_s = CalculateS_ijm(riders, orders, middle_point_set,rider_names, customer_names)
         input_v = CalculateV_ijm(riders, orders, middle_point_set,rider_names, customer_names)
         print('확인 shape',input_s.shape, input_v.shape)
-        zero_info = CalculateZeroY(riders, orders, middle_point_set, robots, rider_names, customer_names, robot_names, now_time=t_now, thres=3)
-        feasibility, solution = LinearizedCollaboProblem(rider_names, customer_names, robot_names, middle_point_set, ro, input_v,input_s, zero_info, print_gurobi = True)
-        #2 task에 middle point 할당
-        if feasibility == True:
-            print('Solved')
-            for info in solution[2]:
-                env.process(robots[info[0]].JobAssign(info[1]))
-        else:
-            print('infeasible')
-        input('!!!! Check!!!!!')
+        zero_info = []
+        #zero_info = CalculateZeroY(riders, orders, middle_point_set, robots, rider_names, customer_names, robot_names,now_time=t_now, thres=30)
+        print(ro)
+        #input('확인')
+        if len(rider_names) > 0 and len(robot_names) > 0 :
+            feasibility, solution = LinearizedCollaboProblem(rider_names, customer_names, robot_names, middle_point_set, ro, input_v,input_s, zero_info, print_gurobi = True)
+            #2 task에 middle point 할당
+            if feasibility == True:
+                print('Solved')
+                count = 0
+                for info1 in solution[2]:
+                    for info2 in solution[1]:
+                        if info1[1] == info2[0]:
+                            middle_point = middle_point_set[info2[1]]
+                            break
+                    robot = robots[robot_names[info1[0]]]
+                    print(info1, middle_point)
+                    if count < len(solution[1]):
+                        print(solution[1][count])
+                    else:
+                        print(count,solution[1],solution[2] )
+                        input('error')
+                        continue
+                    target_order = orders[customer_names[info1[1]]]
+                    target_order.robot = True
+                    #target_order.fee += 3000
+                    target_order.middle_point = middle_point
+                    for task_name in platform.platform:
+                        task = platform.platform[task_name]
+                        if task.customers[0] == target_order.name:
+                            robot.run_process = env.process(robot.JobAssign(target_order, task))
+                    count += 1
+            else:
+                print('infeasible')
+            #input('!!!! Check!!!!!')
+        robo_count = 0
+        for task_name in platform.platform:
+            task = platform.platform[task_name]
+            if task.robot == True and task.robot_t == env.now:
+                print(task.index, task.robot_t, task.route[0][2])
+                robo_count += 1
+        if robo_count > 0:
+            print('T:', env.now, 'robot check')
         yield env.timeout(interval)
+        for task_name in platform.platform:
+            task = platform.platform[task_name]
+            if task.freeze == True and task.gen_t < env.now:
+                task.freeze = False
 
 
