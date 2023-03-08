@@ -417,18 +417,24 @@ def RiderGeneratorByCSV(env, csv_dir, Rider_dict, Platform, Store_dict, Customer
 
 
 def GenerateStoreByCSVStressTest(env, num, platform,Store_dict, mus = [5,10,15], std_ratio = 0.2, store_type = 'Instance_random', ITE = 1, output_data = None,
-                                 detail_pr = None, customer_pend = True, store_capacity = 100, csv_dir = None):
+                                 detail_pr = None, customer_pend = True, store_capacity = 100, dir = None):
     # detail_pr = [rest_type_list, pr_list, frt_list, temperature_list, p2_list] -> array
     #mus = [11.5,13.5,15.5]
-    if csv_dir != None:
-        try:
-            datas = ReadCSV(csv_dir)
-        except:
-            print('dir::',str(csv_dir))
-            input('csv_dir이 없음')
+    datas = []
+    if dir != None:
+        f = open(dir, 'r')
+        lines = f.readlines()
+        for line in lines[1:]:
+            con = line.split(';')
+            tem = []
+            for i in con[:3]:
+                tem.append(int(i))
+            tem += [5,store_capacity,2]
+            datas.append(tem)
+        f.close()
     rest_type_check = []
     for count in range(num):
-        if csv_dir != None:
+        if dir != None:
             if count == len(datas):
                 break #csv 파일을 모두 읽었기 때문에 삭제
             data = datas[count]
@@ -521,7 +527,7 @@ def ReadCSV(csv_dir, interval_index = None):
         datas[-1].append(0)
     return datas
 
-def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed = 1, unit_fee = 110, fee_type = 'linear', warm_up_time = 20):
+def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed = 1, unit_fee = 110, fee_type = 'linear', warm_up_time = 20, dir = None):
     """
     Generate customer order
     :param env: Simpy Env
@@ -531,11 +537,33 @@ def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed
     :param interval: 주문 생성 간격
     :param runtime: 시뮬레이션 동작 시간
     """
+    datas = []
+    if dir != None:
+        locs = []
+        f = open(dir, 'r')
+        lines = f.readlines()
+        for line in lines[1:]:
+            con = line.split(';')
+            tem = []
+            for i in con[:7]:
+                try:
+                    tem.append(int(i))
+                except:
+                    tem.append(float(i))
+            datas.append(tem)
+        f.close()
+
     for name in range(ct_num):
-        input_location = [random.randrange(0,50),random.randrange(0,50)]
-        store = stores[random.choice(list(stores.keys()))]
-        store_num = store.name
-        store_loc = store.location
+        if dir == None:
+            input_location = [random.randrange(0,50),random.randrange(0,50)]
+            store = stores[random.choice(list(stores.keys()))]
+            store_num = store.name
+            store_loc = store.location
+        else:
+            data = datas[name]
+            input_location = [data[1],data[2]]
+            store_num = data[3]
+            store_loc = [data[4],data[5]]
         OD_dist = distance(input_location[0],input_location[1],store_loc[0],store_loc[1])
         p2 = OD_dist/rider_speed
         cook_time = 5
@@ -1292,3 +1320,24 @@ def store_p2_reader(dir, ite = 0):
         stores.append(int(i))
     f.close()
     return stores
+
+
+def RobotGenerator(env, robots, robot_speed = 2, robot_num = 10, dir =None):
+    #  저장 순서  #;x;y;
+    datas = []
+    if dir != None:
+        f = open(dir, 'r')
+        lines = f.readlines()
+        for line in lines[1:]:
+            con = line.split(';')
+            tem = []
+            for i in con[:3]:
+                tem.append(int(i))
+            datas.append(tem)
+        f.close()
+    for count in range(robot_num):
+        if dir == None:
+            init_loc = list(random.sample(list(range(50)),2))
+        else:
+            init_loc = [datas[count][1],datas[count][2]]
+        robots[count] = re_A1_class.robot(env, count, speed=robot_speed, init_loc=init_loc)

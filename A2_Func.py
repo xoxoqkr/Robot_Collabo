@@ -10,7 +10,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-from Bundle_selection_problem import RebaseProblem
+#from Bundle_selection_problem import RebaseProblem
 import os
 os.environ["OMP_NUM_THREADS"] = '1'
 from sklearn.cluster import KMeans
@@ -800,6 +800,127 @@ def ResultPrint(name, customers, speed = 1, riders = None):
     except:
         print('TLT 수:  {}'.format(len(TLT)))
         return None
+
+def ResultPrint2(customers, drivers, robots):
+    #고객 부
+    d_lead_time = []
+    d_pick_up_time = []
+    r_lead_time = []
+    r_pick_up_time = []
+    served_num = 0
+    p_sync_time = []
+    n_sync_time = []
+    for customer_name in customers:
+        customer = customers[customer_name]
+        if customer.time_info[4] != None:
+            served_num += 1
+            if customer.robot_t != None:
+                r_lead_time.append(customer.time_info[4] - customer.time_info[0])
+                r_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
+                sync_t = customer.time_info[1] - customer.robot_t
+                if sync_t < 0:
+                    n_sync_time.append(sync_t)
+                else:
+                    p_sync_time.append(sync_t)
+            else:
+                d_lead_time.append(customer.time_info[4] - customer.time_info[0])
+                d_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
+    customer_res = [d_lead_time,d_pick_up_time, r_lead_time ,r_pick_up_time,p_sync_time,n_sync_time]
+    #라이더 부
+    driver_incomes = []
+    driver_dists = []
+    for driver_name in drivers:
+        driver = drivers[driver_name]
+        driver_incomes.append(driver.income)
+        dist = 0
+        for index in range(1,len(driver.route)):
+            bf = driver.route[index - 1][2]
+            af = driver.route[index][2]
+            dist += distance(bf[0],bf[1],af[0],af[1])
+        driver_dists.append([driver.name, driver.income, driver.robot_use, dist])
+
+    #로봇 부
+    robot_dists = []
+    for robot_name in robots:
+        robot = robots[robot_name]
+        dist = 0
+        for index in range(1,len(robot.visited_nodes)):
+            bf = robot.visited_nodes[index - 1][1]
+            af = robot.visited_nodes[index][1]
+            dist += distance(bf[0],bf[1],af[0],af[1])
+        robot_dists.append([robot.name, robot.income, dist])
+    return customer_res, driver_dists, robot_dists
+
+
+def ResultSave2(customers, drivers, robots, saved_title = '',dir_root= 'C:/Users/박태준/PycharmProjects/Robot_Collabo/res'):
+    #고객 부
+    d_lead_time = []
+    d_pick_up_time = []
+    r_lead_time = []
+    r_pick_up_time = []
+    served_num = 0
+    p_sync_time = []
+    n_sync_time = []
+    customer_saves = []
+    for customer_name in customers:
+        customer = customers[customer_name]
+        if customer.time_info[4] != None:
+            served_num += 1
+            if customer.robot_t != None:
+                r_lead_time.append(customer.time_info[4] - customer.time_info[0])
+                r_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
+                sync_t = customer.time_info[1] - customer.robot_t
+                if sync_t < 0:
+                    n_sync_time.append(sync_t)
+                else:
+                    p_sync_time.append(sync_t)
+            else:
+                d_lead_time.append(customer.time_info[4] - customer.time_info[0])
+                d_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
+            content = [customer.name] + customer.time_info[:5] + [customer.fee] + [customer.robot_t]
+            customer_saves.append(content)
+    customer_res = [d_lead_time,d_pick_up_time, r_lead_time ,r_pick_up_time,p_sync_time,n_sync_time]
+    #라이더 부
+    driver_incomes = []
+    driver_dists = []
+    driver_saves = []
+    for driver_name in drivers:
+        driver = drivers[driver_name]
+        driver_incomes.append(driver.income)
+        dist = 0
+        for index in range(1,len(driver.visited_route)):
+            bf = driver.visited_route[index - 1][2]
+            af = driver.visited_route[index][2]
+            dist += distance(bf[0],bf[1],af[0],af[1])
+        driver_dists.append([driver.name, driver.income, driver.robot_use, dist])
+        driver_saves.append([driver.name, driver.income, driver.robot_use, driver.visited_route])
+    #로봇 부
+    robot_dists = []
+    robot_saves = []
+    for robot_name in robots:
+        robot = robots[robot_name]
+        dist = 0
+        for index in range(1,len(robot.visited_nodes)):
+            bf = robot.visited_nodes[index - 1][1]
+            af = robot.visited_nodes[index][1]
+            dist += distance(bf[0],bf[1],af[0],af[1])
+        robot_dists.append([robot.name, dist])
+        robot_saves.append([robot.name, robot.visited_nodes])
+    save_type = ['/customers/','/drivers/','/robots/']
+    save_headers = ['name;gen_t;pickup_t;store_t;arrive_t;fee;robot_t;\n','name;gen_t;pickup_t;store_t;arrive_t;fee;robot_t;\n','name;income;robot_use;route;\n']
+    save_res = [customer_saves, driver_saves, robot_saves]
+    for save_count in range(3):
+        f = open(dir_root + save_type[save_count]  + saved_title + '.txt', 'w')
+        f.write(save_headers[save_count])
+        for line in save_res[save_count]:
+            con = ''
+            for info in line:
+                con += str(info) + ';'
+            con += ';\n'
+            f.write(con)
+        f.close()
+    return customer_res, driver_dists, robot_dists
+
 
 def RebaseCustomer1(order_names, orders, r_inc = 0.2, max_r = 3, end_ite = 10, num_thres = 50):
     ite = 0

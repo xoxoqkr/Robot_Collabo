@@ -39,6 +39,9 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
     #선형화를 위한 변수
     h = m.addVars(len(drivers), len(customers),len(m_points), vtype=GRB.BINARY, name="h")
     b = m.addVars(len(drivers), len(customers), vtype=GRB.CONTINUOUS, name="b") #크시
+    g = m.addVars(len(drivers), len(customers), vtype=GRB.BINARY, name="g") #y
+    #l = m.addVars(len(drivers), len(customers), vtype=GRB.CONTINUOUS, name="l") #z
+
     #print("Priority Customer", rev_sp)
     # Set objective #Eq(1)
     print('s_value',s_value.shape)
@@ -51,6 +54,7 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
     #Eq(2)
     m.addConstrs(gp.quicksum(x[i, j] for i in drivers) <= 1 for j in customers)
     #Eq(3)
+    #m.addConstrs(gp.quicksum(x[i, j] for j in customers) == 1 for i in drivers)
     m.addConstrs(gp.quicksum(x[i, j] for j in customers) <= 1 for i in drivers)
     #Eq(4)
     m.addConstrs(gp.quicksum(b[i, j] for j in customers) == ro[i] for i in drivers)
@@ -58,11 +62,14 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
     m.addConstrs(cso[j] - b[i, j]<= driver_num*(1 - x[i, j]) for i in drivers for j in customers)
     m.addConstrs(b[i, j] <= (driver_num)*x[i,j] for i in drivers for j in customers)
     #Eq(5)
-    m.addConstrs(cso[j] <= driver_num for j in customers)
+    m.addConstrs(cso[j] <= driver_num + 1 for j in customers)
     #Eq(6)
     m.addConstr(gp.quicksum(cso[j] for j in customers) == sum_i + (driver_num) * (customer_num - driver_num))
     #Eq(7)
-    m.addConstrs(gp.quicksum(x[i, l]*v_value[i,l,m] for l in customers) + large_M*gp.quicksum(x[i, l] for l in customers) + large_M >= v_value[i,j,m]*x[i,j]  for i in drivers for j in customers for m in m_points)
+    #m.addConstrs(gp.quicksum(x[i, l]*v_value[i,l,m] for l in customers) + large_M*gp.quicksum(x[i, l] for l in customers) + large_M >= v_value[i,j,m]*x[i,j]  for i in drivers for j in customers for m in m_points)
+    #m.addConstrs(gp.quicksum(x[i, l]*v_value[i,l,m] for l in customers) - large_M*gp.quicksum(x[i, e] for e in customers) + large_M >= v_value[i,j,m]*g[i,j]  for i in drivers for j in customers for m in m_points)
+    m.addConstrs(gp.quicksum(x[i, l]*v_value[i,l,m] - large_M*x[i, l] for l in customers) + large_M >= v_value[i,j,m]*g[i,j]  for i in drivers for j in customers for m in m_points)
+
     #Eq(8)
     m.addConstrs(gp.quicksum(y[j, m] for m in m_points) <= gp.quicksum(x[i, j] for i in drivers) for j in customers)
     #Eq(9)
@@ -79,6 +86,10 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
             m.addConstr(y[info[0], info[1]] == 0)
         for info in zero_infos[2]:
             m.addConstr(z[info[0], info[1]] == 0)
+    #13
+    m.addConstrs(cso[j] >= ro[i]*g[i,j] for i in drivers for j in customers)
+    #14
+    #m.addConstrs(cso[j] <= (ro[i])*(1 - g[i,j]) + (driver_num + 1)*g[i,j] for i in drivers for j in customers)
     #출력 설정
     if print_gurobi == False:
         m.setParam(GRB.Param.OutputFlag, 0)
@@ -122,7 +133,8 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
         res_x = solution_var(m,'x')
         res_y = solution_var(m,'y')
         res_z = solution_var(m,'z')
-        return True, [res_x,res_y,res_z]
+        res_ro = solution_var2(m, 'c')
+        return True, [res_x,res_y,res_z,res_ro]
     except:
         #print('Infeasible')
         #res = printer(m.getVars(), [], len(drivers), len(customers))
@@ -142,4 +154,11 @@ def solution_var(model,name):
             #res.append(count)
             #print(i,_, j, variable.VarName)
             res.append([int(i), int(j)])
+    return res
+
+def solution_var2(model,name):
+    res = []
+    for variable in model.getVars():
+        if variable.VarName[0] == name:
+            res.append(int(variable.x))
     return res

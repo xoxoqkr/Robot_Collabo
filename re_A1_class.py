@@ -18,6 +18,7 @@ class robot(object):
         self.idle = True
         self.visited_nodes = [[int(env.now),init_loc]]
         self.run_process = None
+        self.income = 0
         self.onhand = None
 
     def JobAssign(self, order, task):
@@ -31,10 +32,11 @@ class robot(object):
         order.middle_point_arrive_t = self.env.now + t1 + t2
         order.store_loc = order.middle_point
         order.time_info[1] = self.env.now
+        order.robot_t = self.env.now
         task.route[0][2] = order.middle_point # task 정보 변경해 주기.
         task.robot = True
         task.robot_t = self.env.now
-        task.fee += 40000 # 라이더들이 task를 선택하도록 만들기
+        #task.fee += 40000 # 라이더들이 task를 선택하도록 만들기
         yield self.env.timeout(t1)
         #t2 = Basic.distance(order.loc[0], order.loc[1], order.middle_point[0], order.middle_point[1]) / self.speed
         order.time_info[2] = self.env.now
@@ -131,6 +133,7 @@ class Rider(object):
         self.exp_end_time = 0
         self.exp_end_location = loc # [25, 25]
         self.count_info = [0,0]
+        self.robot_use = 0
         env.process(self.RunProcess(env, platform, customers, stores, robots, self.p2, freedom= freedom, order_select_type = order_select_type, uncertainty = uncertainty))
         #env.process(self.TaskSearch(env, platform, customers, p2=self.p2, order_select_type=order_select_type, uncertainty=uncertainty))
 
@@ -210,6 +213,7 @@ class Rider(object):
                             robot = robots[order.robot_name]
                             print('로봇{} {}에서 주문 {}; 접선 시간:{} ;; 로봇 도착 시간 :{}'.format(order.robot_name,  order.name ,order.middle_point,int(env.now),robot.visited_nodes[-1][0]))
                             robot.idle = True
+                            self.robot_use += 1
                             #input('로봇 확인2')
                         else:
                             yield order.cooking_process & env.process(self.RiderMoving(env, move_t))
@@ -558,7 +562,7 @@ class Rider(object):
                 time_check.append([scores[-1][7]] + ['N',[-1,-1],0] + [tem_time_check,[-1,-1]])
         #scores.sort(key=operator.itemgetter(10), reverse=True)  # todo : 0929 실험 통제
         scores.sort(key=operator.itemgetter(7), reverse=True) #todo : 0929 실험 통제
-        scores.sort(key=operator.itemgetter(10), reverse=True)  # todo : 0929 실험 통제
+        #scores.sort(key=operator.itemgetter(10), reverse=True)  # todo : 0929 실험 통제
         tem_count = 0
         robo_count1 = 0
         print('확인용2',scores[:1])
@@ -1012,6 +1016,7 @@ class Customer(object):
         self.bundle_len = None
         self.robot = False
         self.robot_name = None
+        self.robot_t = None
         self.middle_point = [0, 0]
         self.middle_point_arrive_t = 0
         self.freeze = True

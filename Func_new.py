@@ -181,7 +181,7 @@ def Platform_process5(env, platform, orders, riders, robots, interval = 5, end_t
                         print(solution[1][count])
                     else:
                         print(count,solution[1],solution[2] )
-                        input('error')
+                        #input('error')
                         continue
                     target_order = orders[customer_names[info1[1]]]
                     target_order.robot = True
@@ -192,6 +192,9 @@ def Platform_process5(env, platform, orders, riders, robots, interval = 5, end_t
                         if task.customers[0] == target_order.name:
                             robot.run_process = env.process(robot.JobAssign(target_order, task))
                     count += 1
+                print('rider_Select', ro)
+                #print('order_Select', solution[3])
+                print('order_Select', sorted(solution[3][:min(len(solution[3])-1,len(ro)+1)]))
             else:
                 print('infeasible')
             #input('!!!! Check!!!!!')
@@ -209,4 +212,159 @@ def Platform_process5(env, platform, orders, riders, robots, interval = 5, end_t
             if task.freeze == True and task.gen_t < env.now:
                 task.freeze = False
 
+def InstanceSave(stores, customers, riders, robots, title_info='',ite = 1, root = ''):
+    store_title = root + 'store_instance_{}_ite_{}.txt'.format(title_info,ite)
+    f = open(store_title, 'a')
+    f.write('#;x;y;\n')
+    for store_name in stores:
+        store = stores[store_name]
+        content = '{};{};{};\n'.format(store.name,store.location[0], store.location[1])
+        f.write(content)
+    f.close()
+    customer_title = root + 'customer_instance_{}_ite_{}.txt'.format(title_info, ite)
+    f = open(customer_title, 'a')
+    f.write('#;gent_t;x;y;s#;s_x;s_y;\n')
+    for customer_name in customers:
+        customer = customers[customer_name]
+        content = '{};{};{};{};{};{};{}; \n'.format(customer.name,customer.time_info[0],customer.location[0], customer.location[1],customer.store,customer.store_loc[0], customer.store_loc[1])
+        f.write(content)
+    f.close()
+    driver_title = root + 'driver_instance_{}_ite_{}.txt'.format(title_info, ite)
+    f = open(driver_title, 'a')
+    f.write('#;x;y;\n')
+    for rider_name in riders:
+        rider = riders[rider_name]
+        content = '{};{};{}; \n'.format(rider.name,rider.visited_route[0][2][0],rider.visited_route[0][2][1])
+        f.write(content)
+    f.close()
+    robot_title = root + 'robot_instance_{}_ite_{}.txt'.format(title_info, ite)
+    f = open(robot_title, 'a')
+    f.write('#;x;y;\n')
+    for robot_name in robots:
+        robot = robots[robot_name]
+        content = '{};{};{}; \n'.format(robot.name,robot.visited_nodes[0][1][0],robot.visited_nodes[0][1][1])
+        f.write(content)
+    f.close()
 
+def ResultPrint2(customers, drivers, robots):
+    #고객 부
+    d_lead_time = []
+    d_pick_up_time = []
+    r_lead_time = []
+    r_pick_up_time = []
+    served_num = 0
+    p_sync_time = []
+    n_sync_time = []
+    for customer_name in customers:
+        customer = customers[customer_name]
+        if customer.time_info[4] != None:
+            served_num += 1
+            if customer.robot_t != None:
+                r_lead_time.append(customer.time_info[4] - customer.time_info[0])
+                r_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
+                sync_t = customer.time_info[1] - customer.robot_t
+                if sync_t < 0:
+                    n_sync_time.append(sync_t)
+                else:
+                    p_sync_time.append(sync_t)
+            else:
+                d_lead_time.append(customer.time_info[4] - customer.time_info[0])
+                d_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
+    customer_res = [d_lead_time,d_pick_up_time, r_lead_time ,r_pick_up_time,p_sync_time,n_sync_time]
+    #라이더 부
+    driver_incomes = []
+    driver_dists = []
+    for driver_name in drivers:
+        driver = drivers[driver_name]
+        driver_incomes.append(driver.income)
+        dist = 0
+        for index in range(1,len(driver.route)):
+            bf = driver.route[index - 1][2]
+            af = driver.route[index][2]
+            dist += distance(bf[0],bf[1],af[0],af[1])
+        driver_dists.append([driver.name, driver.income, driver.robot_use, dist])
+
+    #로봇 부
+    robot_dists = []
+    for robot_name in robots:
+        robot = robots[robot_name]
+        dist = 0
+        for index in range(1,len(robot.visited_nodes)):
+            bf = robot.visited_nodes[index - 1][1]
+            af = robot.visited_nodes[index][1]
+            dist += distance(bf[0],bf[1],af[0],af[1])
+        robot_dists.append([robot.name, robot.income, dist])
+    return customer_res, driver_dists, robot_dists
+
+
+def ResultSave2(customers, drivers, robots, saved_title = '',dir_root= 'C:/Users/박태준/PycharmProjects/Robot_Collabo/res'):
+    #고객 부
+    d_lead_time = []
+    d_pick_up_time = []
+    r_lead_time = []
+    r_pick_up_time = []
+    served_num = 0
+    p_sync_time = []
+    n_sync_time = []
+    customer_saves = []
+    for customer_name in customers:
+        customer = customers[customer_name]
+        if customer.time_info[4] != None:
+            served_num += 1
+            if customer.robot_t != None:
+                r_lead_time.append(customer.time_info[4] - customer.time_info[0])
+                r_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
+                sync_t = customer.time_info[1] - customer.robot_t
+                if sync_t < 0:
+                    n_sync_time.append(sync_t)
+                else:
+                    p_sync_time.append(sync_t)
+            else:
+                d_lead_time.append(customer.time_info[4] - customer.time_info[0])
+                d_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
+            content = [customer.name] + customer.time_info[:5] + [customer.fee] + [customer.robot_t,customer.middle_point_arrive_t, customer.distance]
+            customer_saves.append(content)
+    customer_res = [d_lead_time,d_pick_up_time, r_lead_time ,r_pick_up_time,p_sync_time,n_sync_time]
+    #라이더 부
+    driver_incomes = []
+    driver_dists = []
+    driver_saves = []
+    for driver_name in drivers:
+        driver = drivers[driver_name]
+        driver_incomes.append(driver.income)
+        dist = 0
+        for index in range(1,len(driver.visited_route)):
+            bf = driver.visited_route[index - 1][2]
+            af = driver.visited_route[index][2]
+            dist += distance(bf[0],bf[1],af[0],af[1])
+        driver_dists.append([driver.name, driver.income, driver.robot_use, dist])
+        driver_saves.append([driver.name, driver.income, len(driver.served),driver.robot_use, driver.visited_route])
+    #로봇 부
+    robot_dists = []
+    robot_saves = []
+    for robot_name in robots:
+        robot = robots[robot_name]
+        dist = 0
+        for index in range(1,len(robot.visited_nodes)):
+            bf = robot.visited_nodes[index - 1][1]
+            af = robot.visited_nodes[index][1]
+            dist += distance(bf[0],bf[1],af[0],af[1])
+        robot_dists.append([robot.name, dist])
+        robot_saves.append([robot.name, robot.visited_nodes])
+    save_type = ['/customers/','/drivers/','/robots/']
+    save_headers = ['name;gen_t;pickup_t;store_t;store_dep_t;arrive_t;fee;robot_t;m_arrive_t;OD_distance;\n','name;income;served#;robot_use;route;\n','name;route;\n']
+    save_res = [customer_saves, driver_saves, robot_saves]
+    sub_info = ';R;{};V;{};C;{};'.format(len(robots),len(drivers),len(customers))
+    tm = time.localtime(time.time())
+    tm_info = time.strftime('%Y-%m-%d-%I-%M-%S-%p', tm)
+    for save_count in range(3):
+        f = open(dir_root + save_type[save_count] + saved_title + tm_info + sub_info + '.txt', 'a')
+        f.write(save_headers[save_count])
+        for line in save_res[save_count]:
+            con = ''
+            for info in line:
+                con += str(info) + ';'
+            con += ';\n'
+            f.write(con)
+        f.close()
+    return customer_res, driver_dists, robot_dists
