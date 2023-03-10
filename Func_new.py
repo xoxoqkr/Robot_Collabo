@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 #.py 설명 :
 # -> LinearizedASP_gurobi.py : gurobipy를 이용해 보조금 할당 문제를 풀이하는 함수
-
+import copy
 import random
 import numpy
 import math
@@ -81,6 +81,7 @@ def CalculateZeroY(driver_set, customers_set, middle_point_set,robots, rider_nam
     zero_x = []
     zero_y = []
     zero_r = []
+    sync_value = numpy.zeros((len(rider_names),len(customer_names),len(middle_point_set),len(robot_names)))
     j_index = 0
     for j in customer_names:
         customer = customers_set[j]
@@ -93,15 +94,17 @@ def CalculateZeroY(driver_set, customers_set, middle_point_set,robots, rider_nam
                 for i in rider_names:
                     rider = driver_set[i]
                     robot_arrive = now_time + (distance(robot.loc[0],robot.loc[1],customer.store_loc[0],customer.store_loc[0]) + distance(customer.store_loc[0],customer.store_loc[0],middle[0],middle[1]))/robot.speed
-                    rider_arrive = rider.exp_end_time + (distance(rider.visited_route[-1][2][0],rider.visited_route[-1][2][0],middle[0],middle[1]))/rider.speed
+                    #rider_arrive = rider.exp_end_time + (distance(rider.route[-1][2][0],rider.route[-1][2][0],middle[0],middle[1]))/rider.speed
+                    rider_arrive = rider.exp_end_time + (distance(rider.exp_end_location[0], rider.exp_end_location[1], middle[0], middle[1])) / rider.speed
                     if robot_arrive - rider_arrive> thres:
                         zero_x.append([i_index,j_index])
                         zero_y.append([j_index,m])
                         zero_r.append([r_index,j_index])
+                    sync_value[i_index,j_index,m,r_index] = max(0,robot_arrive - rider_arrive)
                     i_index += 1
                 r_index += 1
         j_index += 1
-    return [zero_x, zero_y, zero_r]
+    return [zero_x, zero_y, zero_r, sync_value]
 
 def CalculateRo(riders,rider_names):
     times = []
@@ -140,7 +143,7 @@ def CalculateTargetNames(driver_set, customers_set, robots, platforms, t_now, in
     return rider_names, customer_names, robot_names
 
 
-def Platform_process5(env, platform, orders, riders, robots, interval = 5, end_t = 100, warm_up_time = 20):
+def Platform_process5(env, platform, orders, riders, robots, stores, interval = 5, end_t = 100, warm_up_time = 20,solver_time_limit = 1000):
     f = open("loop시간정보.txt", 'a')
     locat_t = time.localtime(time.time())
     f.write('시간;{};라이더수;{};'.format(locat_t,len(riders)))
@@ -149,23 +152,40 @@ def Platform_process5(env, platform, orders, riders, robots, interval = 5, end_t
     yield env.timeout(warm_up_time) #warm-up time
     #middle point 설정(지금은 격자로 설정)
     middle_point_set = []
-    for i in list(range(1, 50, 6)):
-        for j in list(range(1, 50, 6)):
+    for i in list(range(1, 50, 4)):
+        for j in list(range(1, 50, 4)):
             middle_point_set.append([i,j])
     while env.now <= end_t:
         #1 문제 풀이
         t_now = env.now
+        #로봇의 relocating을 멈출 것
+        for robot_name in robots:
+            robot = robots[robot_name]
+            reloc = robot.RobotCurrentLoc()
+            if reloc != None and robot.relocate == True: #relocat 중지하기.
+                robot.relocate = False
+                robot.loc = reloc
+                robot.visited_nodes.append([env.now, reloc, 's'])
         rider_names, customer_names, robot_names = CalculateTargetNames(riders, orders, robots, platform, t_now, interval=interval)
         ro = CalculateRo(riders, rider_names)
         input_s = CalculateS_ijm(riders, orders, middle_point_set,rider_names, customer_names)
         input_v = CalculateV_ijm(riders, orders, middle_point_set,rider_names, customer_names)
-        print('확인 shape',input_s.shape, input_v.shape)
+        print('확인 shape',input_s.shape, input_v.shape, len(robot_names))
+        zero_info = CalculateZeroY(riders, orders, middle_point_set, robots, rider_names, customer_names, robot_names,now_time=t_now, thres=30)
+
+        try:
+            sync_t = copy.deepcopy(zero_info[3])
+            print('확인 shape2', sync_t.shape)
+        except:
+            sync_t = []
+        sync_t = []
         zero_info = []
-        #zero_info = CalculateZeroY(riders, orders, middle_point_set, robots, rider_names, customer_names, robot_names,now_time=t_now, thres=30)
         print(ro)
         #input('확인')
         if len(rider_names) > 0 and len(robot_names) > 0 :
-            feasibility, solution = LinearizedCollaboProblem(rider_names, customer_names, robot_names, middle_point_set, ro, input_v,input_s, zero_info, print_gurobi = True)
+            feasibility, solution = LinearizedCollaboProblem(rider_names, customer_names, robot_names, middle_point_set, ro,
+                                                             input_v,input_s, zero_info, print_gurobi = True, timelimit=solver_time_limit
+                                                             ,add_obj = sync_t)
             #2 task에 middle point 할당
             if feasibility == True:
                 print('Solved')
@@ -190,6 +210,8 @@ def Platform_process5(env, platform, orders, riders, robots, interval = 5, end_t
                     for task_name in platform.platform:
                         task = platform.platform[task_name]
                         if task.customers[0] == target_order.name:
+                            store_name = orders[task.customers[0]].store
+                            stores[store_name].got -= 1
                             robot.run_process = env.process(robot.JobAssign(target_order, task))
                     count += 1
                 print('rider_Select', ro)
@@ -198,6 +220,18 @@ def Platform_process5(env, platform, orders, riders, robots, interval = 5, end_t
             else:
                 print('infeasible')
             #input('!!!! Check!!!!!')
+        for robot_name in robots: #현재 대기 중인 로봇 중 마지막 위치가 m인 로봇을 다시 가게 근처로 재 배치
+            robot = robots[robot_name]
+            if robot.idle == True and robot.relocate == False and robot.visited_nodes[-1][2] == 'm':
+                #store_name = random.choice(stores)
+                #store = stores[store_name]
+                store_dist = [] #가장 가까운 가게로 로봇 재배치 #현재 가게라면, 더이상 움직이지 X?
+                for store_name in stores:
+                    store = stores[store_name]
+                    store_dist.append([store_name,distance(store.location[0],store.location[1],robot.loc[0],robot.loc[1])])
+                store_dist.sort(key = operator.itemgetter(1))
+                store = stores[store_dist[0][0]]
+                robot.RobotReLocate(store)
         robo_count = 0
         for task_name in platform.platform:
             task = platform.platform[task_name]
@@ -322,7 +356,7 @@ def ResultSave2(customers, drivers, robots, saved_title = '',dir_root= 'C:/Users
             else:
                 d_lead_time.append(customer.time_info[4] - customer.time_info[0])
                 d_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
-            content = [customer.name] + customer.time_info[:5] + [customer.fee] + [customer.robot_t,customer.middle_point_arrive_t, customer.distance]
+            content = [customer.name] + customer.time_info[:5] + [customer.fee] + [customer.robot_t,customer.middle_point_arrive_t, customer.v_middle_point_arrive_t, customer.distance]
             customer_saves.append(content)
     customer_res = [d_lead_time,d_pick_up_time, r_lead_time ,r_pick_up_time,p_sync_time,n_sync_time]
     #라이더 부
@@ -352,9 +386,13 @@ def ResultSave2(customers, drivers, robots, saved_title = '',dir_root= 'C:/Users
         robot_dists.append([robot.name, dist])
         robot_saves.append([robot.name, robot.visited_nodes])
     save_type = ['/customers/','/drivers/','/robots/']
-    save_headers = ['name;gen_t;pickup_t;store_t;store_dep_t;arrive_t;fee;robot_t;m_arrive_t;OD_distance;\n','name;income;served#;robot_use;route;\n','name;route;\n']
+    save_headers = ['name;gen_t;pickup_t;store_t;store_dep_t;arrive_t;fee;robot_t;r_m_arrive_t;v_m_arrive_t;OD_distance;\n','name;income;served#;robot_use;route;\n','name;route;\n']
     save_res = [customer_saves, driver_saves, robot_saves]
-    sub_info = ';R;{};V;{};C;{};'.format(len(robots),len(drivers),len(customers))
+    sub_info = ';R;{};V;{};C;{};Vs;{};'.format(len(robots),len(drivers),len(customers),drivers[0].speed)
+    if len(robots) > 0:
+        sub_info += 'Rs;{};'.format(robots[0].speed)
+    else:
+        sub_info += 'Rs;0;'
     tm = time.localtime(time.time())
     tm_info = time.strftime('%Y-%m-%d-%I-%M-%S-%p', tm)
     for save_count in range(3):

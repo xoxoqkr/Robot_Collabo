@@ -9,7 +9,7 @@ from gurobipy import GRB
 
 
 
-def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_set,ro, v_value,  s_value, zero_infos, solver=-1, print_gurobi = False):
+def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_set,ro, v_value,  s_value, zero_infos, solver=-1, print_gurobi = False, timelimit = 1000, add_obj = None):
     """
     선형화된 버전의 보조금 문제
     :param driver_set: 가능한 라이더 수
@@ -46,8 +46,11 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
     # Set objective #Eq(1)
     print('s_value',s_value.shape)
     print(len(h))
-    #input('확인')
-    m.setObjective(gp.quicksum(s_value[i,j,m]*h[i,j,m] for i in drivers for j in customers for m in m_points), GRB.MAXIMIZE)
+    #input
+    if len(add_obj) > 0:
+        m.setObjective(gp.quicksum((s_value[i, j, m] - add_obj[i,j,m,r])*(h[i, j, m]*z[r,j]) for i in drivers for j in customers for m in m_points for r in robots),GRB.MAXIMIZE)
+    else:
+        m.setObjective(gp.quicksum(s_value[i,j,m]*h[i,j,m] for i in drivers for j in customers for m in m_points), GRB.MAXIMIZE)
     m.addConstrs(h[i,j,m] <= x[i, j] for i in drivers for j in customers for m in m_points)
     m.addConstrs(h[i, j, m] <= y[j, m] for i in drivers for j in customers for m in m_points)
     m.addConstrs(h[i, j, m] >= x[i, j] + y[j, m] - 1 for i in drivers for j in customers for m in m_points)
@@ -94,6 +97,7 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
     if print_gurobi == False:
         m.setParam(GRB.Param.OutputFlag, 0)
     m.Params.method = solver  # -1은 auto dedection이며, 1~5에 대한 차이.
+    m.setParam("TimeLimit", timelimit)
     m.optimize()
     """
     res = ASP.printer(m.getVars(), [], len(drivers), len(customers))

@@ -2,10 +2,10 @@
 ##'Instance_random','Instance_cluster'
 import time
 
-ITE_NUM = 2
+ITE_NUM = 1
 driver_speeds = [3]
-robot_speeds = [1,2]
-robot_nums = [0,15,30]
+robot_speeds = [1.5]
+robot_nums = [0,30]
 driver_nums = [20]
 
 scenarios  = []

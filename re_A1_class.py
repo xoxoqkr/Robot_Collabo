@@ -16,13 +16,16 @@ class robot(object):
         self.env = env
         self.speed = speed
         self.idle = True
-        self.visited_nodes = [[int(env.now),init_loc]]
+        self.visited_nodes = [[int(env.now),init_loc,'i']]
         self.run_process = None
         self.income = 0
         self.onhand = None
+        self.relocate = False
+        self.relocate_info = [0,0,init_loc]
 
     def JobAssign(self, order, task):
         self.idle = False
+        self.visited_nodes.append([int(self.env.now), self.visited_nodes[-1][1], 'a'])
         print('T:', int(self.env.now), '로봇', self.name, '할당', order.name)
         t1 = Basic.distance(self.loc[0],self.loc[1], order.location[0], order.location[1])/self.speed + order.time_info[6]
         t2 = Basic.distance(order.location[0], order.location[1], order.middle_point[0], order.middle_point[1]) / self.speed
@@ -38,15 +41,43 @@ class robot(object):
         task.robot_t = self.env.now
         #task.fee += 40000 # 라이더들이 task를 선택하도록 만들기
         yield self.env.timeout(t1)
+        self.visited_nodes.append([int(self.env.now),order.location,'r'])
         #t2 = Basic.distance(order.loc[0], order.loc[1], order.middle_point[0], order.middle_point[1]) / self.speed
         order.time_info[2] = self.env.now
         yield self.env.timeout(t2)
         order.time_info[2] = self.env.now
-        self.visited_nodes.append([int(self.env.now),order.middle_point])
+        self.visited_nodes.append([int(self.env.now),order.middle_point,'m'])
         self.loc = [order.middle_point[0], order.middle_point[1]]
         print('T:',int(self.env.now),'로봇',self.name,'주문',order.name,'도착',order.middle_point, self.visited_nodes[-2])
         #input('로봇 확인1')
         #라이더가 접선 후 풀어 주어야 함
+
+
+    def RobotReLocate(self, store):
+        self.relocate = True
+        move_t = Basic.distance(self.loc[0], self.loc[1], store.location[0],store.location[1])/self.speed
+        self.relocate_info = [self.env.now, self.env.now+move_t, store.location[0],store.location[1]]
+        yield self.env.timeout(move_t)
+        self.visited_nodes.append([int(self.env.now),store.location,'r'])
+        self.loc = store.location
+        self.relocate = False
+    def RobotCurrentLoc(self):
+        """
+        로봇의 현재의 위치를 물어 보는 함수.
+        @return:
+        """
+        if self.relocate == True:
+            if self.env.now <= self.relocate_info[1]:
+                ratio = (self.env.now- self.relocate_info[0])/(self.relocate_info[1] - self.env.now)
+                nodeA = self.visited_nodes[-1][1]
+                nodeB = self.relocate_info[2]
+                x_inc = (nodeB[0] - nodeA[0]) * ratio
+                y_inc = (nodeB[1] - nodeA[1]) * ratio
+                return [nodeA[0] + x_inc, nodeA[1] + y_inc]
+            else:
+                return None
+        else:
+            return None
 
 
 class Order(object):
@@ -67,6 +98,7 @@ class Order(object):
         self.freeze = True
         self.robot = False
         self.robot_t = 0
+
 
 
 class Rider(object):
@@ -213,10 +245,12 @@ class Rider(object):
                             robot = robots[order.robot_name]
                             print('로봇{} {}에서 주문 {}; 접선 시간:{} ;; 로봇 도착 시간 :{}'.format(order.robot_name,  order.name ,order.middle_point,int(env.now),robot.visited_nodes[-1][0]))
                             robot.idle = True
+                            order.v_middle_point_arrive_t = env.now
                             self.robot_use += 1
                             #input('로봇 확인2')
                         else:
                             yield order.cooking_process & env.process(self.RiderMoving(env, move_t))
+                            stores[order.store].got -= 1
                         #yield env.process(order.FinsiehdCooking(env, remain_cook_time)) & env.process(self.RiderMoving(env, move_t))
                         #print('예상 시간 {} Vs 실제 시간 {}; 고객 이름{}'.format(expPickUpT, int(env.now), order.name))
                         #input('도착시 조리 시작')
@@ -563,6 +597,9 @@ class Rider(object):
         #scores.sort(key=operator.itemgetter(10), reverse=True)  # todo : 0929 실험 통제
         scores.sort(key=operator.itemgetter(7), reverse=True) #todo : 0929 실험 통제
         #scores.sort(key=operator.itemgetter(10), reverse=True)  # todo : 0929 실험 통제
+        if self.env.now > 30:
+            print('점수확인',scores)
+            #input('확인3')
         tem_count = 0
         robo_count1 = 0
         print('확인용2',scores[:1])
@@ -847,6 +884,7 @@ class Store(object):
         self.capacity = capacity
         self.FRT = [0]
         self.p2 = 1
+        self.got = 0
         self.customer_pend = customer_pend
         env.process(self.StoreRunner(env, platform, capacity = capacity, print_para= print_para))
 
@@ -1020,6 +1058,7 @@ class Customer(object):
         self.middle_point = [0, 0]
         self.middle_point_arrive_t = 0
         self.freeze = True
+        self.v_middle_point_arrive_t = 0
         env.process(self.CustomerLeave(env, platform))
 
     def CustomerLeave(self, env, platform):

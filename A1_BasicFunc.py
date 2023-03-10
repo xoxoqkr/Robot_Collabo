@@ -564,6 +564,7 @@ def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed
             input_location = [data[1],data[2]]
             store_num = data[3]
             store_loc = [data[4],data[5]]
+        stores[store_num].got += 1
         OD_dist = distance(input_location[0],input_location[1],store_loc[0],store_loc[1])
         p2 = OD_dist/rider_speed
         cook_time = 5
@@ -1322,10 +1323,10 @@ def store_p2_reader(dir, ite = 0):
     return stores
 
 
-def RobotGenerator(env, robots, robot_speed = 2, robot_num = 10, dir =None):
+def RobotGenerator(env, robots, stores, robot_speed = 2, robot_num = 10, dir =None):
     #  저장 순서  #;x;y;
     datas = []
-    if dir != None:
+    if dir != None and dir != 'store':
         f = open(dir, 'r')
         lines = f.readlines()
         for line in lines[1:]:
@@ -1338,6 +1339,9 @@ def RobotGenerator(env, robots, robot_speed = 2, robot_num = 10, dir =None):
     for count in range(robot_num):
         if dir == None:
             init_loc = list(random.sample(list(range(50)),2))
+        elif dir == 'store':
+            store = random.choice(stores)
+            init_loc = store.location
         else:
             init_loc = [datas[count][1],datas[count][2]]
         robots[count] = re_A1_class.robot(env, count, speed=robot_speed, init_loc=init_loc)
