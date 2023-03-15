@@ -169,6 +169,18 @@ class Rider(object):
         env.process(self.RunProcess(env, platform, customers, stores, robots, self.p2, freedom= freedom, order_select_type = order_select_type, uncertainty = uncertainty))
         #env.process(self.TaskSearch(env, platform, customers, p2=self.p2, order_select_type=order_select_type, uncertainty=uncertainty))
 
+
+    def AcceptPlatformOffer(self, given_task ,platform, customers, p2=0, uncertainty=False):
+        #플랫폼이 추천한 주문을 채택할지 여부를 결정하는 함수
+        # 주어진 order(or task)가 제일 높은 이윤인지 확인
+        order_info, self_bundle = self.OrderSelect(platform, customers, p2 = p2, uncertainty = uncertainty, current_loc= self.route[-1][2])
+        if given_task.index == order_info[0]: #1등 주문이 추천하는 주문임
+            return True, order_info, self_bundle
+        else: #그렇지 않다면
+            return False, None, None
+
+
+
     def RiderMoving(self, env, time, info = '가게'):
         """
         라이더가 움직이는 시간의 env.time의 generator를 반환
@@ -330,7 +342,7 @@ class Rider(object):
                 yield env.timeout(self.check_t)
 
 
-    def OrderSelect_module(self,env, platform, customers, stores, p2=0, order_select_type='simple', uncertainty=False, score_type = 'simple', M = 10000):
+    def OrderSelect_module(self,env, platform, customers, stores, p2=0, order_select_type='simple', uncertainty=False, score_type = 'simple', M = 10000, given_task = None):
         if self.bundle_construct == True:  # FT/ TT
             # 주문 고르기 #번들 생성 가능하도록
             print('FT/TT')
@@ -339,6 +351,13 @@ class Rider(object):
             # 플랫폼에 있는 주문만 고르기
             print('# FF/ TF')
             order_info, self_bundle = self.OrderSelect(platform, customers, p2=p2, uncertainty=uncertainty)
+        elif given_task != None:
+            print('# platform offer')
+            order_info, self_bundle = self.OrderSelect(platform, customers, p2=p2, uncertainty=uncertainty, current_loc= self.route[-1][2])
+            if given_task == order_info[0]: #플랫폼이 제안하는 주문이 1등 주문인 경우
+                pass
+            else: #플랫폼이 제안하는 주문이 등외 주문일 때
+                order_info = None
         else:
             order_info = None
         # 선택된 번들 반영 부분
@@ -432,8 +451,64 @@ class Rider(object):
                     customers[customer_name].rider_bundle_t = env.now
             Basic.UpdatePlatformByOrderSelection(platform, order_info[0])  # 만약 개별 주문 선택이 있다면, 해당 주문이 선택된 번들을 제거.
 
+    def OrderSelectModuleSub(self, env, platform, customers, stores, order_info, self_bundle, M = 10000):
+        platform.platform[order_info[0]].picked = True
+        # print('F:TaskSearch/라이더#:{}/order_info:{}'.format(self.name, order_info))
+        self.OrderPick(env, order_info, order_info[1], customers, env.now, stores,
+                       route_revise_option=self.bundle_construct,
+                       self_bundle=self_bundle)  # 라우트 결정 후
+        if len(order_info[5]) > 1:
+            platform.selected_bundle_type.append(
+                [int(env.now), platform.platform[order_info[0]].bundle_type, len(order_info[5])])
+        for name in order_info[5]:
+            customers[name].bundle_type = platform.platform[order_info[0]].bundle_type
+            customers[name].dynamic_type = platform.platform[order_info[0]].dynamic_type
+            customers[name].bundle_len = len(order_info[5])
+        # 라우트 타임 계산용 경로 만들기
+        tem_route = []
+        tem_customers = []
+        tem_o_seq = []
+        tem_d_seq = []
+        o_index = 0
+        d_index = 0
+        for node_info in order_info[1]:
+            tem_customers.append(customers[node_info[0]])
+            if node_info[1] == 0:
+                tem_route.append(node_info[0] + M)
+                tem_o_seq.append([node_info[0], o_index])
+                o_index += 1
+            else:
+                tem_route.append(node_info[0])
+                tem_d_seq.append([node_info[0], d_index])
+                d_index += 1
+        for tem_info in tem_o_seq:
+            customers[tem_info[0]].inbundle_order[0] = tem_info[1]
+        for tem_info in tem_d_seq:
+            customers[tem_info[0]].inbundle_order[1] = tem_info[1]
+        print(order_info)
+        # input('체크')
+        self.exp_end_time = env.now + Basic.RouteTime(tem_customers, tem_route,
+                                                      speed=self.speed)  # todo 1118 : 라이더가 번들을 구성한다면 수정해야 함
+        self.exp_end_location = customers[tem_route[-1]].location
+        if self.name in platform.active_rider_names:
+            self.count_info[1] += 1
+        else:
+            self.count_info[0] += 1
+        if order_info[8] == 'platform' and len(order_info[5]) > 1:
+            self.b_select += 1
+            self.num_bundle_customer += len(order_info[5])
+            if self.name in platform.platform[order_info[0]].exp_riders:
+                self.bundles_infos[-1].append(1)  # 예상한 라이더
+            else:
+                self.bundles_infos[-1].append(0)  # 예상하지 못한 라이더
+            # print(self.bundles_infos[-1])
+            # input('self.bundles_infos[-1]')
+        elif order_info[8] == 'rider':
+            for customer_name in platform.platform[order_info[0]].customers:
+                customers[customer_name].rider_bundle_t = env.now
+        Basic.UpdatePlatformByOrderSelection(platform, order_info[0])  # 만약 개별 주문 선택이 있다면, 해당 주문이 선택된 번들을 제거.
 
-    def OrderSelect(self, platform, customers, p2, uncertainty, l = 4):
+    def OrderSelect(self, platform, customers, p2, uncertainty, l = 4, current_loc = None):
         #Step 1 : 고려 대상인 고객 계산
         scores = []
         bound_order_names = []
@@ -461,7 +536,8 @@ class Rider(object):
                 continue
             elif task.picked == False and len(task.customers) + len(self.onhand) <= self.max_order_num: #Step 1-2 : 아직 선택되지 않은 task에 대해 라이더의 현재 위치와의 거리 계산
                 #dist = Basic.distance(self.last_departure_loc[0],self.last_departure_loc[1] ,task.route[0][2][0],task.route[0][2][1]) / self.speed  # 자신의 현재 위치와 order의 시작점(가게) 사이의 거리.
-                current_loc = self.CurrentLoc(self.env.now, tag = 'tr1')
+                if current_loc == None:
+                    current_loc = self.CurrentLoc(self.env.now, tag = 'tr1')
                 dist = Basic.distance(current_loc[0],current_loc[1],task.route[0][2][0],task.route[0][2][1],rider_count= True)  # 자신의 현재 위치와 order의 시작점(가게) 사이의 거리.
                 if len(task.customers) > 1:
                     bundle_task_names.append([task.index, dist])
