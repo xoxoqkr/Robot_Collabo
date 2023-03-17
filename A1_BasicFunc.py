@@ -417,7 +417,7 @@ def RiderGeneratorByCSV(env, csv_dir, Rider_dict, Platform, Store_dict, Customer
 
 
 def GenerateStoreByCSVStressTest(env, num, platform,Store_dict, mus = [5,10,15], std_ratio = 0.2, store_type = 'Instance_random', ITE = 1, output_data = None,
-                                 detail_pr = None, customer_pend = True, store_capacity = 100, dir = None):
+                                 detail_pr = None, customer_pend = True, store_capacity = 100, dir = None, warm_up_time = 20):
     # detail_pr = [rest_type_list, pr_list, frt_list, temperature_list, p2_list] -> array
     #mus = [11.5,13.5,15.5]
     datas = []
@@ -460,7 +460,8 @@ def GenerateStoreByCSVStressTest(env, num, platform,Store_dict, mus = [5,10,15],
             order_ready_time = 5
             capacity = store_capacity
             slack = 2
-        store = re_A1_class.Store(env, platform, name, loc=loc, order_ready_time=order_ready_time, capacity=capacity, print_para=False, slack = slack, customer_pend= customer_pend)
+        store = re_A1_class.Store(env, platform, name, loc=loc, order_ready_time=order_ready_time, capacity=capacity, print_para=False,
+                                  slack = slack, customer_pend= customer_pend, warm_up_time = warm_up_time)
         rv = random.random()
         if rv <= 0.2: #
             store.FRT = numpy.random.normal(mus[0], mus[0]*std_ratio, 1000)
@@ -527,7 +528,7 @@ def ReadCSV(csv_dir, interval_index = None):
         datas[-1].append(0)
     return datas
 
-def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed = 1, unit_fee = 110, fee_type = 'linear', warm_up_time = 20, dir = None):
+def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed = 1, unit_fee = 110, fee_type = 'linear', warm_up_time = 20, dir = None, task_push = 'platform'):
     """
     Generate customer order
     :param env: Simpy Env
@@ -564,7 +565,8 @@ def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed
             input_location = [data[1],data[2]]
             store_num = data[3]
             store_loc = [data[4],data[5]]
-        stores[store_num].got += 1
+        store = stores[store_num]
+        store.got += 1
         OD_dist = distance(input_location[0],input_location[1],store_loc[0],store_loc[1])
         p2 = OD_dist/rider_speed
         cook_time = 5
@@ -575,7 +577,7 @@ def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed
         order.actual_cook_time = cook_time
         order.dp_cook_time = 5*(1 + order.actual_cook_time//5)
         orders[name] = order
-        if platform != None:
+        if task_push == 'platform':
             task_index = len(platform.platform)
             task = GenSingleOrder(task_index, order)
             task.gen_t = env.now
@@ -584,6 +586,9 @@ def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed
             #print(type(task), type(platform))
             #input('확인')
             platform.platform[task_index] = task
+        else:
+            store.received_orders.append(order)
+            print('가게에 추가', len(store.received_orders))
         yield env.timeout(lamda)
 
 def GenSingleOrder(order_index, customer, platform_exp_error = 1):

@@ -170,12 +170,21 @@ class Rider(object):
         #env.process(self.TaskSearch(env, platform, customers, p2=self.p2, order_select_type=order_select_type, uncertainty=uncertainty))
 
 
-    def AcceptPlatformOffer(self, given_task ,platform, customers, p2=0, uncertainty=False):
+    def AcceptPlatformOffer(self, given_task ,platform, customers, p2=0, uncertainty=False, return_type = 'best'):
         #플랫폼이 추천한 주문을 채택할지 여부를 결정하는 함수
-        # 주어진 order(or task)가 제일 높은 이윤인지 확인
-        order_info, self_bundle = self.OrderSelect(platform, customers, p2 = p2, uncertainty = uncertainty, current_loc= self.route[-1][2])
-        if given_task.index == order_info[0]: #1등 주문이 추천하는 주문임
-            return True, order_info, self_bundle
+        # 주어진 order(or task)가 제일 높은 이윤인지
+        if len(self.route) == 0:
+            tem_end_node = self.visited_route[-1][2]
+        else:
+            tem_end_node = self.route[-1][2]
+        order_info, self_bundle = self.OrderSelect(platform, customers, p2 = p2, uncertainty = uncertainty, current_loc= tem_end_node, robot_collabo= True,return_type = return_type)
+        print('입력 task:{} / 계산 결과:{}'.format(given_task.index,order_info))
+        #input('AcceptPlatformOffer 확인')
+        if order_info != None:
+            if return_type == 'best' and given_task.index == order_info[0]: #1등 주문이 추천하는 주문임
+                return True, order_info, self_bundle
+            else:
+                return False, order_info, self_bundle
         else: #그렇지 않다면
             return False, None, None
 
@@ -363,6 +372,8 @@ class Rider(object):
         # 선택된 번들 반영 부분
         empty_t = 1000
         if order_info != None:
+            self.OrderSelectModuleSub(env, platform, customers, stores, order_info, self_bundle, M = M)
+            """
             platform.platform[order_info[0]].picked = True
             if self.rider_select_print_fig == True:
                 input('주문 선택')
@@ -450,6 +461,7 @@ class Rider(object):
                 for customer_name in platform.platform[order_info[0]].customers:
                     customers[customer_name].rider_bundle_t = env.now
             Basic.UpdatePlatformByOrderSelection(platform, order_info[0])  # 만약 개별 주문 선택이 있다면, 해당 주문이 선택된 번들을 제거.
+            """
 
     def OrderSelectModuleSub(self, env, platform, customers, stores, order_info, self_bundle, M = 10000):
         platform.platform[order_info[0]].picked = True
@@ -508,18 +520,22 @@ class Rider(object):
                 customers[customer_name].rider_bundle_t = env.now
         Basic.UpdatePlatformByOrderSelection(platform, order_info[0])  # 만약 개별 주문 선택이 있다면, 해당 주문이 선택된 번들을 제거.
 
-    def OrderSelect(self, platform, customers, p2, uncertainty, l = 4, current_loc = None):
+    def OrderSelect(self, platform, customers, p2, uncertainty, l = 4, current_loc = None,robot_collabo = False, return_type = 'best'):
         #Step 1 : 고려 대상인 고객 계산
+        print('OrderSelect start')
         scores = []
         bound_order_names = []
         bundle_task_names = []
         time_check = []
         robo_count = 0
+        freeze_count = 0
         for index in platform.platform:
             task = platform.platform[index]
             if task.robot == True:
                 print('robo???',task.index, task.freeze, customers[task.customers[0]].cancel, customers[task.customers[0]].who_picked)
             if task.freeze == True:
+                freeze_count += 1
+                print('this {} task is freezed'.format(task.index))
                 continue
             cancel = False #todo : 0929 실험 환경 통제를 위한 조작
             for name in task.customers:
@@ -533,8 +549,9 @@ class Rider(object):
                 if len(customers[name].who_picked) > 0:
                     duplicated_para = True
             if duplicated_para == True: #Step 1-1 : 이미 다른 라이더가 선택한 고객의 경우 고려하지 않음
+                #print('duplicated_para',duplicated_para)
                 continue
-            elif task.picked == False and len(task.customers) + len(self.onhand) <= self.max_order_num: #Step 1-2 : 아직 선택되지 않은 task에 대해 라이더의 현재 위치와의 거리 계산
+            elif (robot_collabo == True and task.picked == False) or (task.picked == False and len(task.customers) + len(self.onhand) <= self.max_order_num): #Step 1-2 : 아직 선택되지 않은 task에 대해 라이더의 현재 위치와의 거리 계산
                 #dist = Basic.distance(self.last_departure_loc[0],self.last_departure_loc[1] ,task.route[0][2][0],task.route[0][2][1]) / self.speed  # 자신의 현재 위치와 order의 시작점(가게) 사이의 거리.
                 if current_loc == None:
                     current_loc = self.CurrentLoc(self.env.now, tag = 'tr1')
@@ -542,12 +559,14 @@ class Rider(object):
                 if len(task.customers) > 1:
                     bundle_task_names.append([task.index, dist])
                 bound_order_names.append([task.index, dist, task.customers])
+                if robot_collabo == True:
+                    print('점수 계산',bound_order_names[-1])
             else: #Step 1-3 : 에러 출력
                 print('F:OrderSelect-E1/task{}/선택 정보 {}/ 주문 채택시 onhand주문수:{} > {}:maxonhand'.format(task.index, task.picked, len(task.customers) + len(self.onhand) ,self.max_order_num))
             if task.robot == True:
                 #print(task.index, task.robot_t, task.robot)
                 robo_count += 1
-        print('라이더_robo1',self.name, robo_count,'/',len(platform.platform))
+        print('라이더_robo1',self.name, robo_count,'/',len(platform.platform),'freeze#',freeze_count)
         bound_order_names.sort(key=operator.itemgetter(1))
         bundle_task_names.sort(key=operator.itemgetter(1))
         #Step 2 : 라이더가 확인할 페이지를 결정
@@ -673,7 +692,7 @@ class Rider(object):
         #scores.sort(key=operator.itemgetter(10), reverse=True)  # todo : 0929 실험 통제
         scores.sort(key=operator.itemgetter(7), reverse=True) #todo : 0929 실험 통제
         #scores.sort(key=operator.itemgetter(10), reverse=True)  # todo : 0929 실험 통제
-        if self.env.now > 30:
+        if self.env.now > 20:
             print('점수확인',scores)
             #input('확인3')
         tem_count = 0
@@ -724,7 +743,10 @@ class Rider(object):
                 if len(score[1]) > 2:
                     bundle_print.append(score)
             print('번들 점수들 {}'.format(bundle_print))
-            return scores[0], scores[0][8]
+            if return_type == 'all':
+                return scores, None
+            else:
+                return scores[0], scores[0][8]
         else:
             self.snapshots.append([round(self.env.now,4),None])
             return None, None
@@ -945,7 +967,7 @@ class Store(object):
     Store can received the order.
     Store has capacity. The order exceed the capacity must be wait.
     """
-    def __init__(self, env, platform, name, loc = (25,25), order_ready_time = 7, capacity = 6, slack = 2, print_para = True, customer_pend = False):
+    def __init__(self, env, platform, name, loc = (25,25), order_ready_time = 7, capacity = 6, slack = 2, print_para = True, customer_pend = False, warm_up_time = 20):
         self.name = name  # 각 고객에게 unique한 이름을 부여할 수 있어야 함. dict의 key와 같이
         self.rest_type = 0
         self.temperature = 'T'
@@ -962,10 +984,10 @@ class Store(object):
         self.p2 = 1
         self.got = 0
         self.customer_pend = customer_pend
-        env.process(self.StoreRunner(env, platform, capacity = capacity, print_para= print_para))
+        env.process(self.StoreRunner(env, platform, capacity = capacity, print_para= print_para, warm_up_time = warm_up_time))
 
 
-    def StoreRunner(self, env, platform, capacity, open_time = 1, close_time = 900, print_para = True):
+    def StoreRunner(self, env, platform, capacity, open_time = 1, close_time = 900, print_para = True, warm_up_time = 20):
         """
         Store order cooking process
         :param env: simpy Env
@@ -977,6 +999,7 @@ class Store(object):
         now_time = round(env.now, 1)
         while now_time < close_time:
             now_time = round(env.now,1)
+            #print(self.name,'가게 시작',capacity )
             if len(self.resource.users) + len(self.resource.put_queue) < capacity + self.slack:  # 플랫폼에 자신이 생각하는 여유 만큼을 게시
                 slack = capacity + self.slack - len(self.resource.users)
                 received_orders_num = len(self.received_orders)
@@ -988,6 +1011,7 @@ class Store(object):
                             platform_exist_order += platform.platform[index].customers
                     except:
                         pass
+                #print(self.name, '가게:사용자', self.resource.users, received_orders_num, slack)
                 if received_orders_num > 0:
                     for count in range(min(slack,received_orders_num)):
                         order = self.received_orders[0]  # 앞에서 부터 플랫폼에 주문 올리기 received_orders는 주문이 발생할 때 추가됨
@@ -998,9 +1022,11 @@ class Store(object):
                             else:
                                 order_index = 1
                             o = Order(order_index, [order.name], route, 'single', fee=order.fee)
+                            if env.now < warm_up_time:
+                                o.freeze = False
                             platform.platform[order_index] = o
                             print('T : {} 가게 {} 고객 {} 주문 인덱스 {}에 추가'.format(env.now, self.name, o.customers, o.index))
-                            print('플랫폼 ID{}'.format(id(platform)))
+                            #print('플랫폼 ID{}'.format(id(platform)))
                         if print_para == True:
                             print('현재T:', int(env.now), '/가게', self.name, '/주문', order.name, '플랫폼에 접수/조리대 여유:',capacity - len(self.resource.users),'/조리 중',len(self.resource.users))
                         self.wait_orders.append(order)
