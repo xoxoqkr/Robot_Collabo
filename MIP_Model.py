@@ -178,7 +178,6 @@ def LinearizedCollaboProblem2(driver_set, customers_set, robot_set, middle_point
     b = m.addVars(len(drivers), len(customers), len(robots), vtype=GRB.CONTINUOUS, name="b") #크시
     g = m.addVars(len(drivers), len(customers), vtype=GRB.BINARY, name="g") #y
     #l = m.addVars(len(drivers), len(customers), vtype=GRB.CONTINUOUS, name="l") #z
-
     #print("Priority Customer", rev_sp)
     # Set objective #Eq(1)
     print('s_value',l_value.shape)
@@ -232,24 +231,36 @@ def LinearizedCollaboProblem2(driver_set, customers_set, robot_set, middle_point
 def solution_var(model,name, length = 2):
     res = []
     for variable in [var for var in model.getVars() if name in var.VarName]: #이름이 제대로 풀력 되는지 확인 필요
+        #print(variable,variable.VarName,variable.X)
+        #input('index 확인')
         if variable.X == 1:
             test = variable.VarName
             if length == 2:
+                """
                 i, _, j = (
                     test.replace(name, "")
                     .replace("[", "")
                     .replace("]", "")
                     .partition(",")
                 )
+                """
+                i, j = (
+                    test.replace(name, "")
+                    .replace("[", "")
+                    .replace("]", "")
+                    .split(",")
+                )
                 #res.append(count)
                 #print(i,_, j, variable.VarName)
                 res.append([int(i), int(j)])
             else:
-                i, _, j, _, k = (
+                #print(test)
+                #input('체크')
+                i, j, k = (
                     test.replace(name, "")
                     .replace("[", "")
                     .replace("]", "")
-                    .partition(",")
+                    .split(",")
                 )
                 #res.append(count)
                 #print(i,_, j, variable.VarName)

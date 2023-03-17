@@ -172,9 +172,13 @@ class Rider(object):
 
     def AcceptPlatformOffer(self, given_task ,platform, customers, p2=0, uncertainty=False):
         #플랫폼이 추천한 주문을 채택할지 여부를 결정하는 함수
-        # 주어진 order(or task)가 제일 높은 이윤인지 확인
-        order_info, self_bundle = self.OrderSelect(platform, customers, p2 = p2, uncertainty = uncertainty, current_loc= self.route[-1][2])
-        if given_task.index == order_info[0]: #1등 주문이 추천하는 주문임
+        # 주어진 order(or task)가 제일 높은 이윤인지
+        if len(self.route) == 0:
+            tem_end_node = self.visited_route[-1][2]
+        else:
+            tem_end_node = self.route[-1][2]
+        order_info, self_bundle = self.OrderSelect(platform, customers, p2 = p2, uncertainty = uncertainty, current_loc= tem_end_node)
+        if order_info != None and given_task.index == order_info[0]: #1등 주문이 추천하는 주문임
             return True, order_info, self_bundle
         else: #그렇지 않다면
             return False, None, None
@@ -363,6 +367,8 @@ class Rider(object):
         # 선택된 번들 반영 부분
         empty_t = 1000
         if order_info != None:
+            self.OrderSelectModuleSub(env, platform, customers, stores, order_info, self_bundle, M = M)
+            """
             platform.platform[order_info[0]].picked = True
             if self.rider_select_print_fig == True:
                 input('주문 선택')
@@ -450,6 +456,7 @@ class Rider(object):
                 for customer_name in platform.platform[order_info[0]].customers:
                     customers[customer_name].rider_bundle_t = env.now
             Basic.UpdatePlatformByOrderSelection(platform, order_info[0])  # 만약 개별 주문 선택이 있다면, 해당 주문이 선택된 번들을 제거.
+            """
 
     def OrderSelectModuleSub(self, env, platform, customers, stores, order_info, self_bundle, M = 10000):
         platform.platform[order_info[0]].picked = True
@@ -977,6 +984,7 @@ class Store(object):
         now_time = round(env.now, 1)
         while now_time < close_time:
             now_time = round(env.now,1)
+            #print(self.name,'가게 시작',capacity )
             if len(self.resource.users) + len(self.resource.put_queue) < capacity + self.slack:  # 플랫폼에 자신이 생각하는 여유 만큼을 게시
                 slack = capacity + self.slack - len(self.resource.users)
                 received_orders_num = len(self.received_orders)
@@ -988,6 +996,7 @@ class Store(object):
                             platform_exist_order += platform.platform[index].customers
                     except:
                         pass
+                #print(self.name, '가게:사용자', self.resource.users, received_orders_num, slack)
                 if received_orders_num > 0:
                     for count in range(min(slack,received_orders_num)):
                         order = self.received_orders[0]  # 앞에서 부터 플랫폼에 주문 올리기 received_orders는 주문이 발생할 때 추가됨
@@ -1000,7 +1009,7 @@ class Store(object):
                             o = Order(order_index, [order.name], route, 'single', fee=order.fee)
                             platform.platform[order_index] = o
                             print('T : {} 가게 {} 고객 {} 주문 인덱스 {}에 추가'.format(env.now, self.name, o.customers, o.index))
-                            print('플랫폼 ID{}'.format(id(platform)))
+                            #print('플랫폼 ID{}'.format(id(platform)))
                         if print_para == True:
                             print('현재T:', int(env.now), '/가게', self.name, '/주문', order.name, '플랫폼에 접수/조리대 여유:',capacity - len(self.resource.users),'/조리 중',len(self.resource.users))
                         self.wait_orders.append(order)

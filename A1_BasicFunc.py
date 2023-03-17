@@ -527,7 +527,7 @@ def ReadCSV(csv_dir, interval_index = None):
         datas[-1].append(0)
     return datas
 
-def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed = 1, unit_fee = 110, fee_type = 'linear', warm_up_time = 20, dir = None):
+def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed = 1, unit_fee = 110, fee_type = 'linear', warm_up_time = 20, dir = None, task_push = 'platform'):
     """
     Generate customer order
     :param env: Simpy Env
@@ -564,7 +564,8 @@ def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed
             input_location = [data[1],data[2]]
             store_num = data[3]
             store_loc = [data[4],data[5]]
-        stores[store_num].got += 1
+        store = stores[store_num]
+        store.got += 1
         OD_dist = distance(input_location[0],input_location[1],store_loc[0],store_loc[1])
         p2 = OD_dist/rider_speed
         cook_time = 5
@@ -575,7 +576,7 @@ def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed
         order.actual_cook_time = cook_time
         order.dp_cook_time = 5*(1 + order.actual_cook_time//5)
         orders[name] = order
-        if platform != None:
+        if task_push == 'platform':
             task_index = len(platform.platform)
             task = GenSingleOrder(task_index, order)
             task.gen_t = env.now
@@ -584,6 +585,9 @@ def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed
             #print(type(task), type(platform))
             #input('확인')
             platform.platform[task_index] = task
+        else:
+            store.received_orders.append(order)
+            print('가게에 추가', len(store.received_orders))
         yield env.timeout(lamda)
 
 def GenSingleOrder(order_index, customer, platform_exp_error = 1):
