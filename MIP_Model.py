@@ -191,8 +191,8 @@ def LinearizedCollaboProblem2(driver_set, customers_set, robot_set, middle_point
     #Eq(3)
     m.addConstrs(gp.quicksum(x[i, j, r] for j in customers for r in robots) <= 1 for i in drivers)
     # Eq(4)
-    m.addConstrs(gp.quicksum(x[i, j, r]  for i in drivers for j in customers ) <= 1 for r in robots)
-
+    #m.addConstrs(gp.quicksum(x[i, j, r]  for i in drivers for j in customers ) <= 1 for r in robots)
+    m.addConstrs(gp.quicksum(x[i, j, r] for i in drivers for j in customers) <= 1 for r in robots[1:]) #robot 0는 더미 이므로
     #Eq(4) select 순서 제약식
     m.addConstrs(gp.quicksum(b[i, j, r] for j in customers for r in robots ) == ro[i] for i in drivers)
     m.addConstrs(b[i,j,r] - cso[j] <= driver_num*(1 - x[i,j,r]) for i in drivers for j in customers for r in robots)
@@ -215,6 +215,8 @@ def LinearizedCollaboProblem2(driver_set, customers_set, robot_set, middle_point
     #출력 설정
     if print_gurobi == False:
         m.setParam(GRB.Param.OutputFlag, 0)
+    #m.setParam(GRB.Param.LogFile, 'test.txt')
+    m.setParam("LogFile", 'log_test')
     m.Params.method = solver  # -1은 auto dedection이며, 1~5에 대한 차이.
     m.setParam("TimeLimit", timelimit)
     m.optimize()

@@ -45,8 +45,10 @@ def CalculateL_ijm(driver_set, customers_set, robot_set, middle_point_set, rider
             customer = customers_set[j]
             r_index = 0
             for r in robot_names:
-                if r == 'dummy':
-                    tem_m_res = []
+                if r == 0:
+                    fin_time = distance(rider_last_node[0],rider_last_node[1],customer.store_loc[0],customer.store_loc[1])/rider.speed
+                    fin_time += distance(customer.store_loc[0],customer.store_loc[1],customer.location[0],customer.location[1])/rider.speed
+                    tem_m_res = [[0,fin_time]]
                 else:
                     robot = robot_set[r]
                     robot_loc = robot.visited_nodes[-1][1]
@@ -64,7 +66,7 @@ def CalculateL_ijm(driver_set, customers_set, robot_set, middle_point_set, rider
                 l_res[k_index, j_index, r_index] = round(tem_m_res[0][1],2)
                 m_res[k_index, j_index, r_index] = int(tem_m_res[0][0])
                 r_index += 1
-            j_index  += 1
+            j_index += 1
         k_index += 1
     return l_res, m_res
 
@@ -125,18 +127,23 @@ def CalculateV_ijr(driver_set, customers_set, robots, middle_point_set,rider_nam
     for i in rider_names:
         try:
             rider = driver_set[i]
+            rider_last_node = rider.exp_end_location
         except:
-            print('확인',type(driver_set))
+            rider_last_node = None
+            input('CalculateV_ijr Error : 확인',type(driver_set))
         j_index = 0
         for j in customer_names:
             customer = customers_set[j]
             r_index = 0
             for _ in robot_names:
-                #print('에러 확인',len(middle_point_set),int(m_infos[i_index,j_index,r_index]))
-                middle = middle_point_set[int(m_infos[i_index,j_index,r_index])]
-                rider_last_node = rider.exp_end_location
-                dist = distance(rider_last_node[0],rider_last_node[1],middle[0],middle[1]) + distance(middle[0],middle[1],customer.location[0],customer.location[1])
-                val = customer.fee*r - 150*dist/rider.speed
+                if _ == 0:
+                    dist = distance(rider_last_node[0], rider_last_node[1], customer.store_loc[0], customer.store_loc[1]) + distance(customer.store_loc[0],customer.store_loc[1],customer.location[0],customer.location[1])
+                    val = customer.fee * - 150 * dist / rider.speed
+                else:
+                    #print('에러 확인',len(middle_point_set),int(m_infos[i_index,j_index,r_index]))
+                    middle = middle_point_set[int(m_infos[i_index,j_index,r_index])]
+                    dist = distance(rider_last_node[0],rider_last_node[1],middle[0],middle[1]) + distance(middle[0],middle[1],customer.location[0],customer.location[1])
+                    val = customer.fee*r - 150*dist/rider.speed
                 res[i_index,j_index,r_index] = round(val ,4)
                 r_index += 1
             j_index += 1
@@ -408,10 +415,13 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
                 print('robot_names',robot_names)
                 for info in query:
                 #for info in query: #x에 대해서 #라이더의 주문 선택 순서대로 물어 보아야 함
+                    m_key = copy.deepcopy([info[1],info[2],info[3]])
                     print(rider_names[info[1]],customer_names[info[2]],robot_names[info[3]])
                     t_rider = riders[rider_names[info[1]]]
                     t_order = orders[customer_names[info[2]]]
                     t_robot = robots[robot_names[info[3]]]
+                    if t_robot.name == 0:
+                        continue
                     task_index = None
                     tem_print = []
                     for task_name in platform.platform:
@@ -436,6 +446,8 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
                                     break
                         #print(accept,order_info)
                         if accept == True and order_info != None:  # 플랫폼이 제안하는 주문이 1등 주문인 경우 # todo: 0315 해를 라이더에게 제안하는 과정 필요
+                            print(m_key, type(input_M[m_key[0],m_key[1],m_key[2]]),input_M.shape)
+                            t_order.middle_point = middle_point_set[int(input_M[m_key[0],m_key[1],m_key[2]])]
                             store_name = orders[task.customers[0]].store
                             stores[store_name].got -= 1
                             t_robot.run_process = env.process(t_robot.JobAssign(t_order, given_task)) # robot에 작업 할당
@@ -447,9 +459,9 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
                     else:
                         tem_print.sort()
                         print('해당 고객', t_order.name, t_order.freeze, tem_print)
-                print('rider_Select', ro)
-                print('order_Select', sorted(solution[3][:min(len(solution[3])-1,len(ro)+1)]))
-                print('order_Select', accept_list)
+                #print('rider_Select', ro)
+                #print('order_Select', sorted(solution[3][:min(len(solution[3])-1,len(ro)+1)]))
+                print('order_Select#', len(accept_list))
                 #input('솔루션 확인')
             else:
                 print('infeasible')

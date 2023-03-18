@@ -4,8 +4,8 @@ import time
 
 ITE_NUM = 1
 driver_speeds = [3]
-robot_speeds = [3]
-robot_nums = [0,30]
+robot_speeds = [2,3,4]
+robot_nums = [30]
 driver_nums = [20]
 
 scenarios  = []
