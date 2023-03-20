@@ -26,9 +26,12 @@ def distance(p1_x, p1_y, p2_x,p2_y):
     else:
         pass
     """
-    euc_dist = math.sqrt((p1_x - p2_x)**2 + (p1_y - p2_y)**2)
-    return euc_dist
-
+    try:
+        euc_dist = math.sqrt((round(p1_x,2) - round(p2_x,2))**2 + (round(p1_x,2) - round(p2_y,2))**2)
+        return euc_dist
+    except:
+        print(p1_x, p2_x,p1_y,p2_y)
+        input('Euc dist error')
 
 def CalculateL_ijm(driver_set, customers_set, robot_set, middle_point_set, rider_names, customer_names, robot_names):
     l_res = numpy.zeros((len(rider_names),len(customer_names),len(robot_names)+1))
@@ -377,7 +380,7 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
         for robot_name in robots:
             robot = robots[robot_name]
             reloc = robot.RobotCurrentLoc()
-            if reloc != None and robot.relocate == True: #relocat 중지하기.
+            if reloc != None and robot.relocate == True and robot.idle == True: #relocat 중지하기.
                 print('재배치 취소 전; T ', env.now)
                 print(robot.relocate, robot.relocate_info, robot.visited_nodes[-1] )
                 robot.run_process.interrupt()

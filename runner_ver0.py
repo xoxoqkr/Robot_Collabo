@@ -1,24 +1,24 @@
 # -*- coding: utf-8 -*-
 ##'Instance_random','Instance_cluster'
 import time
-
-ITE_NUM = 1
+ITE_Start = 1
+ITE_End = 5
 driver_speeds = [3]
-robot_speeds = [3]
-robot_nums = [40]
+robot_speeds = [3,2]
+robot_nums = [40,30,49]
 driver_nums = [30]
-robot_relocate_rules = ['dist','#ct','pareto']
+robot_relocate_rules = ['dist','#ct','pareto','random','None']
 scenarios  = []
 for i in driver_speeds:
     for j in robot_speeds:
         for k in robot_nums:
             for l in driver_nums:
                 for u in robot_relocate_rules:
-                    scenarios .append([i,j,k,l,u])
+                    scenarios.append([i,j,k,l,u])
 init = 0
 
 for sc_info in scenarios:
-    for ite in range(ITE_NUM):
+    for ite in range(ITE_Start, ITE_End):
         start_time = time.time()
         dir = '_instance__ite_' + str(ite) + '.txt'
         exec(open('Simulator_v1.py', encoding='UTF8').read(),

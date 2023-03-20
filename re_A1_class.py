@@ -74,14 +74,25 @@ class robot(object):
         if self.relocate == True:
             if self.env.now <= self.relocate_info[1]:
                 #ratio = (self.env.now - self.relocate_info[0])/(self.relocate_info[1] - self.env.now)
-                ratio = (self.relocate_info[1] - self.relocate_info[0]) / (self.env.now - self.relocate_info[0])
+                #ratio = (self.relocate_info[1] - self.relocate_info[0]) / (self.env.now - self.relocate_info[0])
+                ratio = (self.env.now - self.relocate_info[0]) / (self.relocate_info[1] - self.relocate_info[0])
+                if ratio > 1:
+                    print(ratio, self.relocate_info, self.env.now)
+                    input('dist error1')
                 nodeA = self.visited_nodes[-1][1]
                 nodeB = self.relocate_info[2]
                 x_inc = (nodeB[0] - nodeA[0]) * ratio
                 y_inc = (nodeB[1] - nodeA[1]) * ratio
                 print(self.relocate_info, self.env.now)
-                print('재배치 정보',ratio, nodeA, nodeB, x_inc, y_inc)
-                return [nodeA[0] + x_inc, nodeA[1] + y_inc]
+                print('재배치 정보',self.relocate_info, ratio, nodeA, nodeB, x_inc, y_inc)
+                x = round(nodeA[0] + x_inc,2)
+                y = round(nodeA[1] + y_inc,2)
+                if 0 <= x <= 50 and 0 <= y <= 50:
+                    pass
+                else:
+                    print('x',x,'y',y)
+                    input('dist error2')
+                return [round(nodeA[0] + x_inc,2), round(nodeA[1] + y_inc,2)]
             else:
                 return None
         else:
@@ -270,7 +281,14 @@ class Rider(object):
                             robot = robots[order.robot_name]
                             print('로봇{} {}에서 T: {}에 접선 예정; 고객:{} ; {}'.format(order.robot_name,  order.middle_point,order.middle_point_arrive_t,order.name, robot.onhand))
                             #input('로봇 확인2-1')
-                            yield robot.run_process & env.process(self.RiderMoving(env, move_t))
+                            if robot.run_process != None:
+                                yield robot.run_process & env.process(self.RiderMoving(env, move_t))
+                            else:
+                                print(robot.run_process)
+                                print(robot.relocate, robot.relocate_info)
+                                print(robot.visited_nodes[-2:])
+                                input('로봇에 할당된 주문이 없음 에러')
+                                yield env.process(self.RiderMoving(env, move_t))
                             robot = robots[order.robot_name]
                             print('로봇{} {}에서 주문 {}; 접선 시간:{} ;; 로봇 도착 시간 :{}'.format(order.robot_name,  order.name ,order.middle_point,int(env.now),robot.visited_nodes[-1][0]))
                             robot.idle = True
