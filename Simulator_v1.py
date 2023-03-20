@@ -17,6 +17,7 @@ global robot_speed
 global robot_num
 global rider_num
 global dir
+global robot_relocate_rule
 """
 ite = 0
 rider_speed = 3
@@ -48,7 +49,8 @@ env.process(Ordergenerator(env, Orders, Store_dict,  customer_num,  Platform2, r
 #print('로봇 수',robot_num)
 #input('확인')
 
-env.process(Platform_process6(env, Platform2, Orders, Rider_dict, Robot_dict, Store_dict,interval = 5, end_t = run_time, warm_up_time = warm_up_time, solver_time_limit = solver_time_limit))
+env.process(Platform_process6(env, Platform2, Orders, Rider_dict, Robot_dict, Store_dict,interval = 5, end_t = run_time, warm_up_time = warm_up_time,
+                              solver_time_limit = solver_time_limit, robot_relocate_rule = robot_relocate_rule))
 
 env.run(run_time)
 #결과 저장 파트
@@ -56,7 +58,7 @@ print(len(Store_dict),len(Robot_dict),len(Orders))
 #InstanceSave(Store_dict, Orders, Rider_dict, Robot_dict, title_info='',ite = ite, root = 'C:/Users/박태준/PycharmProjects/Robot_Collabo/datas/')
 
 
-ResultSave2(Orders, Rider_dict, Robot_dict, saved_title = 'ite'+str(ite) + '_')
+ResultSave2(Orders, Rider_dict, Robot_dict, saved_title = 'ite;'+str(ite) + ';r_rule;' + robot_relocate_rule + ';')
 res_c, res_d, res_r = ResultPrint2(Orders, Rider_dict, Robot_dict)
 
 

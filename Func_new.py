@@ -351,7 +351,7 @@ def Platform_process5(env, platform, orders, riders, robots, stores, interval = 
                 task.freeze = False
 
 
-def Platform_process6(env, platform, orders, riders, robots, stores, interval = 5, end_t = 100, warm_up_time = 20,solver_time_limit = 1000):
+def Platform_process6(env, platform, orders, riders, robots, stores, interval = 5, end_t = 100, warm_up_time = 20,solver_time_limit = 1000, robot_relocate_rule = 'dist'):
     f = open("loop시간정보.txt", 'a')
     locat_t = time.localtime(time.time())
     f.write('시간;{};라이더수;{};'.format(locat_t,len(riders)))
@@ -378,9 +378,17 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
             robot = robots[robot_name]
             reloc = robot.RobotCurrentLoc()
             if reloc != None and robot.relocate == True: #relocat 중지하기.
+                print('재배치 취소 전; T ', env.now)
+                print(robot.relocate, robot.relocate_info, robot.visited_nodes[-1] )
+                robot.run_process.interrupt()
+                robot.run_process = None
                 robot.relocate = False
                 robot.loc = reloc
                 robot.visited_nodes.append([env.now, reloc, 's'])
+                print('재배치 취소 후; T ', env.now)
+                print(robot.relocate, robot.relocate_info, robot.visited_nodes[-1] )
+                print('로봇{} 진행중이던 재배치 중지'.format(robot_name))
+                #input('재배치 확인')
         rider_names, customer_names, robot_names = CalculateTargetNames(riders, orders, robots, platform, t_now, interval=interval)
         ro = CalculateRo(riders, rider_names)
         input_L, input_M = CalculateL_ijm(riders, orders, robots, middle_point_set,rider_names, customer_names,robot_names)
@@ -466,18 +474,55 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
             else:
                 print('infeasible')
             #input('!!!! Check!!!!!')
+        print('T:{} 재배치 규칙 {}'.format(env.now, robot_relocate_rule))
+        robot_relocate_count = 0
         for robot_name in robots: #현재 대기 중인 로봇 중 idle 상태(=마지막 위치가 m)인 로봇을 다시 가게 근처로 재 배치
             robot = robots[robot_name]
-            if robot.idle == True and robot.relocate == False and robot.visited_nodes[-1][2] == 'm':
+            #if robot.idle == True and robot.relocate == False and robot.visited_nodes[-1][2] == 'm':
+            if robot.idle == True and robot.relocate == False :
                 #store_name = random.choice(stores)
                 #store = stores[store_name]
-                store_dist = [] #가장 가까운 가게로 로봇 재배치 #현재 가게라면, 더이상 움직이지 X?
-                for store_name in stores:
-                    store = stores[store_name]
-                    store_dist.append([store_name,distance(store.location[0],store.location[1],robot.loc[0],robot.loc[1]), len(store.received_orders)])
-                store_dist.sort(key = operator.itemgetter(1))
-                store = stores[store_dist[0][0]]
-                robot.RobotReLocate(store)
+                store_scores = [] #가장 가까운 가게로 로봇 재배치 #현재 가게라면, 더이상 움직이지 X?
+                ct_num = []
+                if robot.relocate_info[1] > env.now:  # 향하던 가게가 있다면, 해당 가게로 다시 출발 시키자
+                    store_scores.append([robot.relocate_info[3],0,0])
+                else: #현재 가게나 중간 지점에 있다면, 다른 가게로 보내 보자.
+                    for store_name in stores:
+                        store = stores[store_name]
+                        store_scores.append([store_name,distance(store.location[0],store.location[1],robot.loc[0],robot.loc[1]), len(store.received_orders)])
+                        ct_num.append(len(store.received_orders))
+                #max_num = max(ct_num)
+                #for store_score in store_scores:
+                #    store_score.append(1 - store_score[2]/max_num)
+                if robot_relocate_rule == 'dist':
+                    store_scores.sort(key=operator.itemgetter(1))
+                elif robot_relocate_rule == '#ct': #현재 주문이 가장 많은 가게로 이동
+                    store_scores.sort(key=operator.itemgetter(2), reverse= True)
+                elif robot_relocate_rule == 'pareto':
+                    pareto_scores = []
+                    for store_score1 in store_scores:
+                        tem = [store_score1[0],0]
+                        for store_score2 in store_scores:
+                            if store_score1 != store_score2:
+                                if store_score1[1] < store_score2[1] and store_score1[2] > store_score2[2] :
+                                    tem[1] += 1
+                        pareto_scores.append(tem)
+                    pareto_scores.sort(key=operator.itemgetter(1), reverse=True)
+                    store_scores = [pareto_scores[0]]
+                elif robot_relocate_rule == 'random':
+                    store_name = random.choice(list(range(len(stores))))
+                    store_scores = [[stores[store_name].name]]
+                elif robot_relocate_rule == 'None':
+                    continue
+                else:
+                    input('robot_relocate_rule error : current rule : {}'.format(robot_relocate_rule))
+                #store_scores.sort(key = operator.itemgetter(1))
+                store = stores[store_scores[0][0]]
+                #env.process(robot.RobotReLocate(store))
+                robot.run_process = env.process(robot.RobotReLocate(store))  # robot에 작업 할당
+                robot_relocate_count += 1
+                print('로봇 {} 가게 {}로 재배치 {}'.format(robot.name, store.name, robot.visited_nodes[-1]))
+        #input('로봇 {}대 재배치 확인'.format(robot_relocate_count))
         robo_count = 0
         for task_name in platform.platform:
             task = platform.platform[task_name]
@@ -603,7 +648,7 @@ def ResultSave2(customers, drivers, robots, saved_title = '',dir_root= 'C:/Users
             else:
                 d_lead_time.append(customer.time_info[4] - customer.time_info[0])
                 d_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
-            content = [customer.name] + customer.time_info[:5] + [customer.fee] + [customer.robot_t,customer.middle_point_arrive_t, customer.v_middle_point_arrive_t, customer.distance]
+            content = [customer.name] + customer.time_info[:5] + [customer.fee] + [customer.robot_t,customer.r_middle_point_arrive_t, customer.v_middle_point_arrive_t, customer.distance]
             customer_saves.append(content)
     customer_res = [d_lead_time,d_pick_up_time, r_lead_time ,r_pick_up_time,p_sync_time,n_sync_time]
     #라이더 부

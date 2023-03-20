@@ -21,33 +21,34 @@ class robot(object):
         self.income = 0
         self.onhand = None
         self.relocate = False
-        self.relocate_info = [0,0,init_loc]
+        self.relocate_info = [0,0,init_loc,0]
+
 
     def JobAssign(self, order, task):
         self.idle = False
-        self.visited_nodes.append([int(self.env.now), self.visited_nodes[-1][1], 'a'])
+        self.visited_nodes.append([int(self.env.now), self.loc, 'a'])
         print('T:', int(self.env.now), '로봇', self.name, '할당', order.name)
-        t1 = Basic.distance(self.loc[0],self.loc[1], order.location[0], order.location[1])/self.speed + order.time_info[6]
-        t2 = Basic.distance(order.location[0], order.location[1], order.middle_point[0], order.middle_point[1]) / self.speed
+        t1 = Basic.distance(self.loc[0],self.loc[1], order.store_loc[0], order.store_loc[1])/self.speed + order.time_info[6]
+        t2 = Basic.distance(order.store_loc[0], order.store_loc[1], order.middle_point[0], order.middle_point[1]) / self.speed
         self.onhand = order.name
         order.robot = True
         order.robot_name = self.name
         order.middle_point_arrive_t = self.env.now + t1 + t2
         order.store_loc = order.middle_point
-        order.time_info[1] = self.env.now
+        order.time_info[1] = self.env.now #todo 0320: 로봇이나 차량이 이 주문을 잡은 시간을 표기
         order.robot_t = self.env.now
         task.route[0][2] = order.middle_point # task 정보 변경해 주기.
         task.robot = True
         task.robot_t = self.env.now
         #task.fee += 40000 # 라이더들이 task를 선택하도록 만들기
         yield self.env.timeout(t1)
-        self.visited_nodes.append([int(self.env.now),order.location,'r'])
-        #t2 = Basic.distance(order.loc[0], order.loc[1], order.middle_point[0], order.middle_point[1]) / self.speed
-        order.time_info[2] = self.env.now
+        self.visited_nodes.append([self.env.now - order.time_info[6] ,order.store_loc,'r']) #도착한 시간
+        order.time_info[2] = self.env.now #가게 출발 시간
         yield self.env.timeout(t2)
         order.time_info[2] = self.env.now
         self.visited_nodes.append([int(self.env.now),order.middle_point,'m'])
         self.loc = [order.middle_point[0], order.middle_point[1]]
+        order.r_middle_point_arrive_t = self.env.now
         print('T:',int(self.env.now),'로봇',self.name,'주문',order.name,'도착',order.middle_point, self.visited_nodes[-2])
         #input('로봇 확인1')
         #라이더가 접선 후 풀어 주어야 함
@@ -56,11 +57,15 @@ class robot(object):
     def RobotReLocate(self, store):
         self.relocate = True
         move_t = Basic.distance(self.loc[0], self.loc[1], store.location[0],store.location[1])/self.speed
-        self.relocate_info = [self.env.now, self.env.now+move_t, store.location[0],store.location[1]]
-        yield self.env.timeout(move_t)
-        self.visited_nodes.append([int(self.env.now),store.location,'r'])
-        self.loc = store.location
-        self.relocate = False
+        self.relocate_info = [self.env.now, self.env.now+move_t, store.location, store.name]
+        try:
+            yield self.env.timeout(move_t)
+            self.visited_nodes.append([int(self.env.now),store.location,'r'])
+            self.loc = store.location
+            self.relocate = False
+        except simpy.Interrupt:
+            pass
+
     def RobotCurrentLoc(self):
         """
         로봇의 현재의 위치를 물어 보는 함수.
@@ -68,11 +73,14 @@ class robot(object):
         """
         if self.relocate == True:
             if self.env.now <= self.relocate_info[1]:
-                ratio = (self.env.now- self.relocate_info[0])/(self.relocate_info[1] - self.env.now)
+                #ratio = (self.env.now - self.relocate_info[0])/(self.relocate_info[1] - self.env.now)
+                ratio = (self.relocate_info[1] - self.relocate_info[0]) / (self.env.now - self.relocate_info[0])
                 nodeA = self.visited_nodes[-1][1]
                 nodeB = self.relocate_info[2]
                 x_inc = (nodeB[0] - nodeA[0]) * ratio
                 y_inc = (nodeB[1] - nodeA[1]) * ratio
+                print(self.relocate_info, self.env.now)
+                print('재배치 정보',ratio, nodeA, nodeB, x_inc, y_inc)
                 return [nodeA[0] + x_inc, nodeA[1] + y_inc]
             else:
                 return None
@@ -872,7 +880,8 @@ class Rider(object):
             pass
         for name in names:
             customer = customers[name]
-            customer.time_info[1] = now_t
+            if customer.time_info[1] == None:
+                customer.time_info[1] = now_t
             customer.who_picked.append([self.name, now_t,self_bundle,'single'])
             if 0 < customer.dp_cook_time < 15:
                 #env.process(stores[customer.store].Cook(env, customer, manual_cook_time = customer.cook_time))
@@ -1161,6 +1170,7 @@ class Customer(object):
         self.middle_point_arrive_t = 0
         self.freeze = True
         self.v_middle_point_arrive_t = 0
+        self.r_middle_point_arrive_t = 0
         env.process(self.CustomerLeave(env, platform))
 
     def CustomerLeave(self, env, platform):
