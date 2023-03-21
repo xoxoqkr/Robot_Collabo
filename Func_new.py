@@ -234,8 +234,13 @@ def CalculateTargetNames(driver_set, customers_set, robots, platforms, t_now, in
     robot_names = []
     for rider_name in driver_set:
         driver = driver_set[rider_name]
-        if driver.exp_end_time < t_now + interval and len(driver.picked_orders) < driver.max_order_num:
+        if max(driver.exp_end_time, driver.visited_route[-1][3]) < t_now + interval and len(driver.picked_orders) <= driver.capacity:
+            print('라이더 {} 정보;{};{};{};{};{};'.format(driver.name, driver.exp_end_time,len(driver.picked_orders),driver.capacity, driver.route, driver.visited_route[-1]))
             rider_names.append(rider_name)
+            if driver.exp_end_time < driver.visited_route[-1][3]:
+                #input('에러 발생1')
+                print('에러 발생1')
+                pass
     for customer_name in customers_set:
         if customers_set[customer_name].time_info[1] == None and customers_set[customer_name].cancel == False:
             customer_names.append(customer_name)
@@ -377,17 +382,19 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
         #1 문제 풀이
         t_now = env.now
         #로봇의 relocating을 멈출 것
+
         for robot_name in robots:
             robot = robots[robot_name]
             reloc = robot.RobotCurrentLoc()
             if reloc != None and robot.relocate == True and robot.idle == True: #relocat 중지하기.
                 print('재배치 취소 전; T ', env.now)
                 print(robot.relocate, robot.relocate_info, robot.visited_nodes[-1] )
-                robot.run_process.interrupt()
+                robot.run_process.interrupt(robot.run_process)
                 robot.run_process = None
                 robot.relocate = False
                 robot.loc = reloc
-                robot.visited_nodes.append([env.now, reloc, 's'])
+                robot.visited_nodes.append([round(env.now,1), reloc, 's'])
+                print('현재 운행 중?? ',robot.run_process)
                 print('재배치 취소 후; T ', env.now)
                 print(robot.relocate, robot.relocate_info, robot.visited_nodes[-1] )
                 print('로봇{} 진행중이던 재배치 중지'.format(robot_name))
@@ -407,6 +414,7 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
         zero_info = []
         print(ro)
         #input('확인')
+        used_robots = []
         if len(rider_names) > 0 and len(robot_names) > 0 :
             feasibility, solution, cso = LinearizedCollaboProblem2(rider_names, customer_names, robot_names, middle_point_set, ro,
                                                              input_v,input_L, zero_info, print_gurobi = True, timelimit=solver_time_limit)
@@ -416,9 +424,21 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
                 accept_list = []
                 query = []
                 ro_index = 0
+                checkset1 = []
+                checkset2 = []
+                checkset3 = []
                 for info in solution:
                     query.append([ro[ro_index],info[0],info[1],info[2]])
                     ro_index += 1
+                    checkset1.append(info[0])
+                    checkset2.append(info[1])
+                    checkset3.append(info[2])
+                checkset1.sort()
+                checkset2.sort()
+                checkset3.sort()
+                print('rider_names',checkset1)
+                print('customer_names', checkset2)
+                print('robot_names', checkset3)
                 #query.sort(key=operator.itemgetter(0))
                 print('query',query)
                 print('rider_names',rider_names)
@@ -456,7 +476,7 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
                                     accept = True
                                     break
                         #print(accept,order_info)
-                        if accept == True and order_info != None:  # 플랫폼이 제안하는 주문이 1등 주문인 경우 # todo: 0315 해를 라이더에게 제안하는 과정 필요
+                        if accept == True and order_info != None:# and t_robot.idle == True:  # 플랫폼이 제안하는 주문이 1등 주문인 경우 # todo: 0315 해를 라이더에게 제안하는 과정 필요
                             print(m_key, type(input_M[m_key[0],m_key[1],m_key[2]]),input_M.shape)
                             t_order.middle_point = middle_point_set[int(input_M[m_key[0],m_key[1],m_key[2]])]
                             store_name = orders[task.customers[0]].store
@@ -464,7 +484,8 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
                             t_robot.run_process = env.process(t_robot.JobAssign(t_order, given_task)) # robot에 작업 할당
                             t_rider.OrderSelectModuleSub(env, platform, orders, stores, order_info, self_bundle) #라이더 경로 업데이트
                             accept_list.append(order_info)
-                            print('라이더{}/task:{}/로봇 협업'.format(t_rider.name,task.index))
+                            used_robots.append(t_robot.name)
+                            print('T:{} 라이더{}/task:{}/로봇 {} 협업'.format(env.now, t_rider.name,task.index, t_robot.name))
                         else:
                             print('로봇 필요 X')
                     else:
@@ -479,10 +500,10 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
             #input('!!!! Check!!!!!')
         print('T:{} 재배치 규칙 {}'.format(env.now, robot_relocate_rule))
         robot_relocate_count = 0
-        for robot_name in robots: #현재 대기 중인 로봇 중 idle 상태(=마지막 위치가 m)인 로봇을 다시 가게 근처로 재 배치
+        for robot_name in robot_names: #현재 대기 중인 로봇 중 idle 상태(=마지막 위치가 m)인 로봇을 다시 가게 근처로 재 배치
             robot = robots[robot_name]
             #if robot.idle == True and robot.relocate == False and robot.visited_nodes[-1][2] == 'm':
-            if robot.idle == True and robot.relocate == False :
+            if robot.idle == True and robot.relocate == False and robot.name not in used_robots and robot.run_process == None:
                 #store_name = random.choice(stores)
                 #store = stores[store_name]
                 store_scores = [] #가장 가까운 가게로 로봇 재배치 #현재 가게라면, 더이상 움직이지 X?

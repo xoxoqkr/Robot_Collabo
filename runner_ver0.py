@@ -1,22 +1,25 @@
 # -*- coding: utf-8 -*-
 ##'Instance_random','Instance_cluster'
 import time
-ITE_Start = 1
-ITE_End = 5
+ITE_Start = 0
+ITE_End = 2
 driver_speeds = [3]
-robot_speeds = [3,2]
-robot_nums = [40,30,49]
-driver_nums = [30]
-robot_relocate_rules = ['dist','#ct','pareto','random','None']
+robot_speeds = [2,3]
+robot_nums = [29,39,49]
+driver_nums = [20,30]
+robot_relocate_rules = ['dist','#ct','pareto','random','None']#['dist']#['dist','#ct','pareto','random','None']
 scenarios  = []
 for i in driver_speeds:
     for j in robot_speeds:
         for k in robot_nums:
             for l in driver_nums:
-                for u in robot_relocate_rules:
-                    scenarios.append([i,j,k,l,u])
+                if l < k <= l + 9:
+                    for u in robot_relocate_rules:
+                        scenarios.append([i,j,k,l,u])
 init = 0
-
+print(scenarios)
+print(len(scenarios)*(ITE_End))
+input('개수 확인')
 for sc_info in scenarios:
     for ite in range(ITE_Start, ITE_End):
         start_time = time.time()

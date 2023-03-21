@@ -158,14 +158,15 @@ def RouteTime(orders, route, M = 10000, speed = 1, uncertainty = False, error = 
     else:
         input('Error')
     #print('고려 대상들{} 경로{}'.format(list(locs.keys()), route))
-    #print('locs',locs)
+    print('locs',route)
     for index in range(1,len(route)):
         bf = route[index-1]
         bf_loc = locs[bf][0]
         af = route[index]
-        #print(1, bf,af,time)
         af_loc = locs[af][0]
         time += (distance(bf_loc[0],bf_loc[1],af_loc[0],af_loc[1])/speed) * random.choice(exp_error) + locs[af][2]
+        print('time',time)
+        print('경로 확인', bf_loc, af_loc)
         if af > M:
             for order in orders:
                 if order.name == af - M:
@@ -333,7 +334,7 @@ def RiderGenerator(env, Rider_dict, Platform, Store_dict, Customer_dict, Robot_d
         single_rider = re_A1_class.Rider(env,rider_num,Platform, Customer_dict,  Store_dict, Robot_dict, start_time = env.now ,speed = speed, end_t = working_duration, \
                                    capacity = capacity, freedom=freedom, order_select_type = input_order_select_type, wait_para =wait_para, \
                                       uncertainty = uncertainty, exp_error = exp_error, platform_recommend = platform_recommend,
-                                         bundle_construct= bundle_construct, loc = this_loc)
+                                         bundle_construct= bundle_construct, loc = this_loc, max_order_num= 2)
 
         single_rider.exp_wage = exp_WagePerHr
         Rider_dict[rider_num] = single_rider
@@ -562,9 +563,9 @@ def Ordergenerator(env, orders, stores, ct_num, platform, lamda = 1, rider_speed
             store_loc = store.location
         else:
             data = datas[name]
-            input_location = [data[1],data[2]]
-            store_num = data[3]
-            store_loc = [data[4],data[5]]
+            input_location = [data[2],data[3]]
+            store_num = data[4]
+            store_loc = [data[5],data[6]]
         store = stores[store_num]
         store.got += 1
         OD_dist = distance(input_location[0],input_location[1],store_loc[0],store_loc[1])
