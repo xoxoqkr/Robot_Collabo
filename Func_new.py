@@ -27,21 +27,24 @@ def distance(p1_x, p1_y, p2_x,p2_y):
         pass
     """
     try:
-        euc_dist = math.sqrt((round(p1_x,2) - round(p2_x,2))**2 + (round(p1_x,2) - round(p2_y,2))**2)
+        euc_dist = math.sqrt((round(p1_x,2) - round(p2_x,2))**2 + (round(p1_y,2) - round(p2_y,2))**2)
         return euc_dist
     except:
         print(p1_x, p2_x,p1_y,p2_y)
         input('Euc dist error')
 
-def CalculateL_ijm(driver_set, customers_set, robot_set, middle_point_set, rider_names, customer_names, robot_names):
+def CalculateL_ijr(driver_set, customers_set, robot_set, middle_point_set, rider_names, customer_names, robot_names):
     l_res = numpy.zeros((len(rider_names),len(customer_names),len(robot_names)+1))
     m_res = numpy.zeros((len(rider_names),len(customer_names),len(robot_names)+1))
+    #check_list = numpy.zeros((len(rider_names),len(customer_names),len(robot_names)+1))
     print( 'CalculateS_ijm',rider_names, customer_names)
     #print(res.shape)
     #input('shape 확인')
     k_index = 0
     for k in rider_names:
         rider = driver_set[k]
+        #if rider.route[-1][2] != rider.exp_end_location:
+        #    print('잘못 된 끝 지점 에러1')
         rider_last_node = rider.exp_end_location
         j_index = 0
         for j in customer_names:
@@ -51,7 +54,13 @@ def CalculateL_ijm(driver_set, customers_set, robot_set, middle_point_set, rider
                 if r == 0:
                     fin_time = distance(rider_last_node[0],rider_last_node[1],customer.store_loc[0],customer.store_loc[1])/rider.speed
                     fin_time += distance(customer.store_loc[0],customer.store_loc[1],customer.location[0],customer.location[1])/rider.speed
-                    tem_m_res = [[0,fin_time]]
+                    tem_m_res = [[0,fin_time,None]]
+                    """
+                    print(distance(rider_last_node[0],rider_last_node[1],customer.store_loc[0],customer.store_loc[1])/rider.speed,
+                          distance(customer.store_loc[0],customer.store_loc[1],customer.location[0],customer.location[1])/rider.speed)
+                    print('veh_only{};{};{};{};{};{};{};'.format(rider.name,customer.name, r, rider_last_node,customer.store_loc,customer.location,rider_last_node))
+                    """
+
                 else:
                     robot = robot_set[r]
                     robot_loc = robot.visited_nodes[-1][1]
@@ -63,9 +72,10 @@ def CalculateL_ijm(driver_set, customers_set, robot_set, middle_point_set, rider
                         t_minus = (distance(robot_loc[0],robot_loc[1],customer.store_loc[0],customer.store_loc[1])+
                                     distance(customer.store_loc[0],customer.store_loc[1],middle[0],middle[1]))/robot.speed
                         fin_time = t_plus + max(0,t_minus - t_plus ) + t_tilt #rirder_exp_end_time은 공통이기 때문에 삭제해도 무방
-                        tem_m_res.append([m_index, fin_time])
+                        tem_m_res.append([m_index, fin_time,robot_loc])
                         m_index += 1
                     tem_m_res.sort(key=operator.itemgetter(1))
+                    #print('with robo{};{};{};{};{};{};'.format(rider.name,customer.name, r))
                 l_res[k_index, j_index, r_index] = round(tem_m_res[0][1],2)
                 m_res[k_index, j_index, r_index] = int(tem_m_res[0][0])
                 r_index += 1
@@ -131,9 +141,11 @@ def CalculateV_ijr(driver_set, customers_set, robots, middle_point_set,rider_nam
         try:
             rider = driver_set[i]
             rider_last_node = rider.exp_end_location
+            #if rider.route[-1][2] != rider.exp_end_location:
+            #    print('잘못 된 끝 지점 에러2')
         except:
             rider_last_node = None
-            input('CalculateV_ijr Error : 확인',type(driver_set))
+            input('CalculateV_ijr Error : 확인:{}'.format(type(driver_set)))
         j_index = 0
         for j in customer_names:
             customer = customers_set[j]
@@ -141,12 +153,12 @@ def CalculateV_ijr(driver_set, customers_set, robots, middle_point_set,rider_nam
             for _ in robot_names:
                 if _ == 0:
                     dist = distance(rider_last_node[0], rider_last_node[1], customer.store_loc[0], customer.store_loc[1]) + distance(customer.store_loc[0],customer.store_loc[1],customer.location[0],customer.location[1])
-                    val = customer.fee * - 150 * dist / rider.speed
+                    val = customer.fee - 150*(dist/rider.speed)
                 else:
                     #print('에러 확인',len(middle_point_set),int(m_infos[i_index,j_index,r_index]))
                     middle = middle_point_set[int(m_infos[i_index,j_index,r_index])]
                     dist = distance(rider_last_node[0],rider_last_node[1],middle[0],middle[1]) + distance(middle[0],middle[1],customer.location[0],customer.location[1])
-                    val = customer.fee*r - 150*dist/rider.speed
+                    val = customer.fee*r - 150*(dist/rider.speed)
                 res[i_index,j_index,r_index] = round(val ,4)
                 r_index += 1
             j_index += 1
@@ -280,7 +292,7 @@ def Platform_process5(env, platform, orders, riders, robots, stores, interval = 
         rider_names, customer_names, robot_names = CalculateTargetNames(riders, orders, robots, platform, t_now, interval=interval)
         ro = CalculateRo(riders, rider_names)
         input_s = CalculateS_ijm(riders, orders, middle_point_set,rider_names, customer_names)
-        input_L, input_M = CalculateL_ijm(riders, orders, robots, middle_point_set,rider_names, customer_names,robot_names)
+        input_L, input_M = CalculateL_ijr(riders, orders, robots, middle_point_set,rider_names, customer_names,robot_names)
         input_v = CalculateV_ijm(riders, orders, middle_point_set,rider_names, customer_names)
         print('확인 shape',input_s.shape, input_v.shape, len(robot_names))
         zero_info = CalculateZeroY(riders, orders, middle_point_set, robots, rider_names, customer_names, robot_names,now_time=t_now, thres=30)
@@ -401,7 +413,7 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
                 #input('재배치 확인')
         rider_names, customer_names, robot_names = CalculateTargetNames(riders, orders, robots, platform, t_now, interval=interval)
         ro = CalculateRo(riders, rider_names)
-        input_L, input_M = CalculateL_ijm(riders, orders, robots, middle_point_set,rider_names, customer_names,robot_names)
+        input_L, input_M = CalculateL_ijr(riders, orders, robots, middle_point_set,rider_names, customer_names,robot_names)
         print('라이더 타입',type(riders))
         input_v = CalculateV_ijr(riders, orders,robots , middle_point_set,rider_names, customer_names,robot_names, input_M, r = 1)
         print('확인 shape',input_L.shape, input_M.shape ,input_v.shape, len(robot_names))
@@ -418,6 +430,11 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
         if len(rider_names) > 0 and len(robot_names) > 0 :
             feasibility, solution, cso = LinearizedCollaboProblem2(rider_names, customer_names, robot_names, middle_point_set, ro,
                                                              input_v,input_L, zero_info, print_gurobi = True, timelimit=solver_time_limit)
+            if feasibility == False:
+                feasibility, solution, cso = LinearizedCollaboProblem2(rider_names, customer_names, robot_names,
+                                                                       middle_point_set, ro,
+                                                                       input_v, input_L, zero_info, print_gurobi=True,
+                                                                       timelimit=solver_time_limit, simple = True)
             #2 task에 middle point 할당
             if feasibility == True:
                 print('Solved')
@@ -477,15 +494,25 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
                                     break
                         #print(accept,order_info)
                         if accept == True and order_info != None:# and t_robot.idle == True:  # 플랫폼이 제안하는 주문이 1등 주문인 경우 # todo: 0315 해를 라이더에게 제안하는 과정 필요
-                            print(m_key, type(input_M[m_key[0],m_key[1],m_key[2]]),input_M.shape)
+                            print('check14-1',m_key, type(input_M[m_key[0],m_key[1],m_key[2]]),input_M.shape)
                             t_order.middle_point = middle_point_set[int(input_M[m_key[0],m_key[1],m_key[2]])]
                             store_name = orders[task.customers[0]].store
                             stores[store_name].got -= 1
+                            print('check14-2',t_order.name , t_order.middle_point, t_order.store_loc, t_order.org_store_loc, t_order.location)
                             t_robot.run_process = env.process(t_robot.JobAssign(t_order, given_task)) # robot에 작업 할당
+                            order_info[1][0][2] = t_order.middle_point #todo 0322 실제 차량이 가게 까지 가지 않고, middle point에서 멈추도록!
                             t_rider.OrderSelectModuleSub(env, platform, orders, stores, order_info, self_bundle) #라이더 경로 업데이트
+                            print('check14-3',t_rider.route, t_rider.exp_end_location)
+                            print('check14-4', 'L info : Org {} vs {} rev'.format(input_L[m_key[0],m_key[1],0], input_L[m_key[0],m_key[1],m_key[2]]))
+                            print('check14-5', 'V info :Org {} vs {} rev'.format(input_v[m_key[0], m_key[1], 0],
+                                                                       input_v[m_key[0], m_key[1], m_key[2]]))
+                            if order_info[1][0][2] not in middle_point_set:
+                                print(t_order.middle_point,order_info[1])
+                                input('문제 발생')
                             accept_list.append(order_info)
                             used_robots.append(t_robot.name)
-                            print('T:{} 라이더{}/task:{}/로봇 {} 협업'.format(env.now, t_rider.name,task.index, t_robot.name))
+                            print('T:{} 라이더{}/고객:{}/로봇 {} 협업'.format(env.now, t_rider.name,task.index, t_robot.name))
+                            #input('확인')
                         else:
                             print('로봇 필요 X')
                     else:

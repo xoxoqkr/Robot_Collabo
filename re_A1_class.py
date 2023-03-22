@@ -383,7 +383,7 @@ class Rider(object):
                     print('T: {} 라이더 : {} 노드 {} 이동 시작 예상 시간{}'.format(int(env.now), self.name, node_info, move_t))
                     if node_info[1] == 0: #가게인 경우
                         exp_store_arrive = env.now + move_t
-                        move_t += order.time_info[6]
+                        #move_t += order.time_info[6]
                         if order.type == 'single_order':
                             pool = numpy.random.normal(order.cook_info[1][0], order.cook_info[1][1] * self.exp_error, 1000)
                             order.rider_exp_cook_time = random.choice(pool)
@@ -415,8 +415,12 @@ class Rider(object):
                             print('로봇{} {}에서 T: {}에 접선 예정; 고객:{} ; {}'.format(order.robot_name,  order.middle_point,order.middle_point_arrive_t,order.name, robot.onhand))
                             #input('로봇 확인2-1')
                             if robot.run_process != None:
+                                if node_info[2] != order.middle_point:
+                                    print(node_info[2] , order.middle_point)
+                                    input('잘못된 접선 지점으로 이동 중')
                                 yield robot.run_process & env.process(self.RiderMoving(env, move_t))
                             else:
+                                move_t += order.time_info[6]
                                 print(robot.run_process)
                                 print(robot.relocate, robot.relocate_info)
                                 print(robot.visited_nodes[-2:])
@@ -429,6 +433,7 @@ class Rider(object):
                             self.robot_use += 1
                             #input('로봇 확인2')
                         else:
+                            move_t += order.time_info[6]
                             yield order.cooking_process & env.process(self.RiderMoving(env, move_t))
                             stores[order.store].got -= 1
                         #yield env.process(order.FinsiehdCooking(env, remain_cook_time)) & env.process(self.RiderMoving(env, move_t))
@@ -505,6 +510,8 @@ class Rider(object):
                                 input('에러 발생')
                     self.last_departure_loc = self.route[0][2]
                     self.visited_route.append(self.route[0])
+                    if order.robot == True and self.visited_route[-1][1] == 0:
+                        self.visited_route[-1].append('m')
                     self.visited_route[-1][3] = round(env.now,4)
                     #input('방문 경로 확인 {}'.format(self.visited_route))
                     del self.route[0]
@@ -1292,6 +1299,7 @@ class Customer(object):
         # 4:고객이 받은 시간, 5: 보장 배송 시간, 6:가게에서 소요되는 시간),7: 고객에게 서비스 하는 시간, 8: 가게 도착 시간]
         self.location = input_location
         self.store_loc = store_loc
+        self.org_store_loc = store_loc
         self.store = store
         self.type = 'single_order'
         self.min_FLT = p2 #Basic.distance(input_location[0],input_location[1], store_loc[0],store_loc[1]) #todo: 고객이 기대하는 FLT 시간.

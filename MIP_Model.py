@@ -145,7 +145,7 @@ def LinearizedCollaboProblem(driver_set, customers_set, robot_set, middle_point_
         return False, []
 
 
-def LinearizedCollaboProblem2(driver_set, customers_set, robot_set, middle_point_set,ro, v_value,  l_value, zero_infos, solver=-1, print_gurobi = False, timelimit = 1000):
+def LinearizedCollaboProblem2(driver_set, customers_set, robot_set, middle_point_set,ro, v_value,  l_value, zero_infos, solver=-1, print_gurobi = False, timelimit = 1000, simple = False):
     """
     선형화된 버전의 보조금 문제
     :param driver_set: 가능한 라이더 수
@@ -193,23 +193,27 @@ def LinearizedCollaboProblem2(driver_set, customers_set, robot_set, middle_point
     # Eq(4)
     #m.addConstrs(gp.quicksum(x[i, j, r]  for i in drivers for j in customers ) <= 1 for r in robots)
     m.addConstrs(gp.quicksum(x[i, j, r] for i in drivers for j in customers) <= 1 for r in robots[1:]) #robot 0는 더미 이므로
-    #Eq(4) select 순서 제약식
-    m.addConstrs(gp.quicksum(b[i, j, r] for j in customers for r in robots ) == ro[i] for i in drivers)
-    m.addConstrs(b[i,j,r] - cso[j] <= driver_num*(1 - x[i,j,r]) for i in drivers for j in customers for r in robots)
-    m.addConstrs(cso[j] - b[i, j, r]<= driver_num*(1 - x[i, j, r]) for i in drivers for j in customers for r in robots)
-    m.addConstrs(b[i, j, r] <= (driver_num)*x[i,j, r] for i in drivers for j in customers for r in robots)
-    #Eq(5)
-    m.addConstrs(cso[j] <= driver_num + 1 for j in customers)
-    #Eq(6)
-    m.addConstr(gp.quicksum(cso[j] for j in customers) == sum_i + (driver_num) * (customer_num - driver_num))
-    #Eq(7)
-    m.addConstrs(gp.quicksum(x[i, l, o]*v_value[i,l,o] - large_M*x[i, l, o] for l in customers for o in robots) + large_M >= v_value[i,j,r]*g[i,j]  for i in drivers for j in customers for r in robots)
-    #Eq(12) -> input과 결합
-    if zero_infos != []:
-        for info in zero_infos[0]:
-            m.addConstr(x[info[0],info[1], info[2]] == 0)
-    #13
-    m.addConstrs(cso[j] >= ro[i]*g[i,j] for i in drivers for j in customers)
+    if simple == False:
+        #Eq(4) select 순서 제약식
+        m.addConstrs(gp.quicksum(b[i, j, r] for j in customers for r in robots ) == ro[i] for i in drivers)
+        m.addConstrs(b[i,j,r] - cso[j] <= driver_num*(1 - x[i,j,r]) for i in drivers for j in customers for r in robots)
+        m.addConstrs(cso[j] - b[i, j, r]<= driver_num*(1 - x[i, j, r]) for i in drivers for j in customers for r in robots)
+        m.addConstrs(b[i, j, r] <= (driver_num)*x[i,j, r] for i in drivers for j in customers for r in robots)
+        #Eq(5)
+        m.addConstrs(cso[j] <= driver_num + 1 for j in customers)
+        #Eq(6)
+        m.addConstr(gp.quicksum(cso[j] for j in customers) == sum_i + (driver_num) * (customer_num - driver_num))
+        #Eq(7)
+        m.addConstrs(gp.quicksum(x[i, l, o]*v_value[i,l,o] - large_M*x[i, l, o] for l in customers for o in robots) + large_M >= v_value[i,j,r]*g[i,j]  for i in drivers for j in customers for r in robots)
+        #Eq(12) -> input과 결합
+        if zero_infos != []:
+            for info in zero_infos[0]:
+                m.addConstr(x[info[0],info[1], info[2]] == 0)
+        #13
+        m.addConstrs(cso[j] >= ro[i]*g[i,j] for i in drivers for j in customers)
+    else:
+        m.addConstrs(gp.quicksum(x[i, l, o] * v_value[i, l, o] - large_M * x[i, l, o] for l in customers for o in robots) + large_M >=v_value[i, j, r] * x[i, j, r] for i in drivers for j in customers for r in robots)
+
     #14
     #m.addConstrs(cso[j] <= (ro[i])*(1 - g[i,j]) + (driver_num + 1)*g[i,j] for i in drivers for j in customers)
     #출력 설정

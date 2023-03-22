@@ -18,6 +18,7 @@ global robot_num
 global rider_num
 global dir
 global robot_relocate_rule
+global run_time
 """
 ite = 0
 rider_speed = 3
@@ -33,7 +34,7 @@ Rider_dict = {}
 Orders = {}
 Platform2 = Platform_pool()
 Store_dict = {}
-run_time = 120
+#run_time = 120
 csv_dir = ''
 Robot_dict = {}
 warm_up_time = 20
