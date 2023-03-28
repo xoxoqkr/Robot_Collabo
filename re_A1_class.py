@@ -24,7 +24,7 @@ class robot(object):
         self.onhand = None
         self.relocate = False
         self.relocate_info = [0,0,init_loc,0]
-
+        self.current_store = None
 
     def JobAssign(self, order, task):
         if self.visited_nodes[-1][2] in ['r','l']:
@@ -76,6 +76,7 @@ class robot(object):
                 self.visited_nodes.append([round(self.env.now,1),store.location,'l', store.name])
                 self.loc = store.location
                 self.relocate = False
+                self.current_store = store.name
                 print('로봇:{} 재배치 완료 ;T{}'.format(self.name, self.env.now))
             else:
                 print('로봇:{}재배치 X ;T{}'.format(self.name, self.env.now))
@@ -410,6 +411,7 @@ class Rider(object):
                             self.single_store_wait.append(wait_at_store)
                         expPickUpT = env.now + move_t
                         #yield env.process(stores[store_name].Cook(env, order, order.cook_info[0], manual_cook_time = remain_cook_time)) & env.process(self.RiderMoving(env, move_t))
+
                         if order.robot == True:
                             robot = robots[order.robot_name]
                             print('로봇{} {}에서 T: {}에 접선 예정; 고객:{} ; {}'.format(order.robot_name,  order.middle_point,order.middle_point_arrive_t,order.name, robot.onhand))
@@ -435,7 +437,7 @@ class Rider(object):
                         else:
                             move_t += order.time_info[6]
                             yield order.cooking_process & env.process(self.RiderMoving(env, move_t))
-                            stores[order.store].got -= 1
+                        stores[order.store].got -= 1
                         #yield env.process(order.FinsiehdCooking(env, remain_cook_time)) & env.process(self.RiderMoving(env, move_t))
                         #print('예상 시간 {} Vs 실제 시간 {}; 고객 이름{}'.format(expPickUpT, int(env.now), order.name))
                         #input('도착시 조리 시작')

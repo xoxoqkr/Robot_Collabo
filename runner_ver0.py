@@ -5,17 +5,17 @@ run_time = 120
 ITE_Start = 0
 ITE_End = 1
 driver_speeds = [3]
-robot_speeds = [2,2.5,3]
-#robot_nums = [40]
-driver_nums = [20,25,30]
-robot_relocate_rules = ['dist','None']#['dist']#['dist','#ct','pareto','random','None']
+robot_speeds = [2.5]
+robot_nums = [31]
+driver_nums = [21]
+robot_relocate_rules = ['pavone']#['dist']#['dist','#ct','pareto','random','None']
 scenarios  = []
 for i in driver_speeds:
     for l in driver_nums:
         for j in robot_speeds:
-            robot_nums = [0]
-            for _ in range(0,3):
-                robot_nums.append(l + 5*_)
+            robot_nums = [31]
+            #for _ in range(1,2):
+            #    robot_nums.append(l + 5*_)
             for k in robot_nums:
                 #if l < k <= l + 9:
                 for u in robot_relocate_rules:
@@ -23,7 +23,7 @@ for i in driver_speeds:
 init = 0
 print(scenarios)
 print(len(scenarios)*(ITE_End))
-input('개수 확인')
+#input('개수 확인')
 for sc_info in scenarios:
     for ite in range(ITE_Start, ITE_End):
         start_time = time.time()

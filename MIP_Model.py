@@ -204,7 +204,7 @@ def LinearizedCollaboProblem2(driver_set, customers_set, robot_set, middle_point
         #Eq(6)
         m.addConstr(gp.quicksum(cso[j] for j in customers) == sum_i + (driver_num) * (customer_num - driver_num))
         #Eq(7)
-        m.addConstrs(gp.quicksum(x[i, l, o]*v_value[i,l,o] - large_M*x[i, l, o] for l in customers for o in robots) + large_M >= v_value[i,j,r]*g[i,j]  for i in drivers for j in customers for r in robots)
+        #m.addConstrs(gp.quicksum(x[i, l, o]*v_value[i,l,o] - large_M*x[i, l, o] for l in customers for o in robots) + large_M >= v_value[i,j,r]*g[i,j]  for i in drivers for j in customers for r in robots)
         #Eq(12) -> input과 결합
         if zero_infos != []:
             for info in zero_infos[0]:
@@ -212,7 +212,9 @@ def LinearizedCollaboProblem2(driver_set, customers_set, robot_set, middle_point
         #13
         m.addConstrs(cso[j] >= ro[i]*g[i,j] for i in drivers for j in customers)
     else:
-        m.addConstrs(gp.quicksum(x[i, l, o] * v_value[i, l, o] - large_M * x[i, l, o] for l in customers for o in robots) + large_M >=v_value[i, j, r] * x[i, j, r] for i in drivers for j in customers for r in robots)
+        pass
+    # Eq(7)
+    m.addConstrs(gp.quicksum(x[i, l, o] * v_value[i, l, o] - large_M * x[i, l, o] for l in customers for o in robots) + large_M >=v_value[i, j, r] * x[i, j, r] for i in drivers for j in customers for r in robots)
 
     #14
     #m.addConstrs(cso[j] <= (ro[i])*(1 - g[i,j]) + (driver_num + 1)*g[i,j] for i in drivers for j in customers)
@@ -233,6 +235,29 @@ def LinearizedCollaboProblem2(driver_set, customers_set, robot_set, middle_point
         #print('Infeasible')
         #res = printer(m.getVars(), [], len(drivers), len(customers))
         return False, [], []
+
+def PavoneRelocation(c,v,num_z,solver=-1, print_gurobi = True, timelimit = 1000):
+    zones = list(range(num_z))
+    m = gp.Model("mip1")
+    u = m.addVars(c.shape[0], c.shape[1], vtype=GRB.INTEGER, name="u")
+    v_d = sum(v)/num_z
+    m.setObjective(gp.quicksum(c[i, j] * u[i, j] for i in zones for j in zones), GRB.MINIMIZE)
+    m.addConstrs(v[i] + gp.quicksum(u[j, i] - u[i, j] for j in zones) >= v_d for i in zones)
+    if print_gurobi == False:
+        m.setParam(GRB.Param.OutputFlag, 0)
+    m.setParam("LogFile2", 'log_test')
+    m.Params.method = solver  # -1은 auto dedection이며, 1~5에 대한 차이.
+    m.setParam("TimeLimit", timelimit)
+    m.optimize()
+    #print('Obj val: %g' % m.objVal, "Solver", solver)
+    try:
+        print('Obj val: %g' % m.objVal, "Solver", solver)
+        res_x = solution_var(m, 'u', length=2)
+        return True, res_x
+    except:
+        # print('Infeasible')
+        # res = printer(m.getVars(), [], len(drivers), len(customers))
+        return False, []
 
 def solution_var(model,name, length = 2):
     res = []
