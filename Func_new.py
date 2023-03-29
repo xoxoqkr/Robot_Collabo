@@ -672,6 +672,7 @@ def PavoneInputCalculator(stores, robots, drivers, now_t = 0):
             if i < j:
                 dist = distance(store1[0], store1[1], store2[0], store2[1])
                 c[i,j] = dist
+                c[j, i] = dist
             elif i == j:
                 pass
             else:

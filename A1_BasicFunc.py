@@ -429,7 +429,11 @@ def GenerateStoreByCSVStressTest(env, num, platform,Store_dict, mus = [5,10,15],
             con = line.split(';')
             tem = []
             for i in con[:3]:
-                tem.append(int(i))
+                try:
+                    tem.append(int(i))
+                except:
+                    tem.append(float(i))
+                #tem.append(float(i))
             tem += [5,store_capacity,2]
             datas.append(tem)
         f.close()
@@ -1339,7 +1343,11 @@ def RobotGenerator(env, robots, stores, robot_speed = 2, robot_num = 10, dir =No
             con = line.split(';')
             tem = []
             for i in con[:3]:
-                tem.append(int(i))
+                try:
+                    tem.append(int(i))
+                except:
+                    tem.append(float(i))
+                #tem.append(float(i))
             datas.append(tem)
         f.close()
     for count in range(robot_num):

@@ -19,6 +19,7 @@ global rider_num
 global dir
 global robot_relocate_rule
 global run_time
+global ins_type
 """
 ite = 0
 rider_speed = 3
@@ -39,7 +40,7 @@ csv_dir = ''
 Robot_dict = {}
 warm_up_time = 20
 solver_time_limit = 1000
-root = 'C:/Users/박태준/PycharmProjects/Robot_Collabo/datas/'
+root = 'C:/Users/박태준/PycharmProjects/Robot_Collabo/datas/'+ ins_type + '/'
 # run
 env = simpy.Environment()
 GenerateStoreByCSVStressTest(env, store_num, Platform2, Store_dict, store_type=instance_type, ITE=ite, dir = root+'store'+dir, customer_pend= False, warm_up_time = warm_up_time)
@@ -59,7 +60,7 @@ print(len(Store_dict),len(Robot_dict),len(Orders))
 #InstanceSave(Store_dict, Orders, Rider_dict, Robot_dict, title_info='',ite = ite, root = 'C:/Users/박태준/PycharmProjects/Robot_Collabo/datas/')
 
 
-ResultSave2(Orders, Rider_dict, Robot_dict, saved_title = 'ite;'+str(ite) + ';r_rule;' + robot_relocate_rule + ';')
+ResultSave2(Orders, Rider_dict, Robot_dict, saved_title = 'ite;'+str(ite) + ';r_rule;' + robot_relocate_rule + ';ins' + ins_type)
 res_c, res_d, res_r = ResultPrint2(Orders, Rider_dict, Robot_dict)
 
 
