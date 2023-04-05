@@ -54,7 +54,7 @@ class robot(object):
         self.visited_nodes.append([round(self.env.now - order.time_info[6],1) ,old_store_loc,'r', order.name]) #도착한 시간
         order.time_info[2] = self.env.now #가게 출발 시간
         yield self.env.timeout(t2)
-        order.time_info[2] = self.env.now
+        #order.time_info[2] = self.env.now
         if self.visited_nodes[-1][2] == 'l':
             self.visited_nodes.pop(-1)
         self.visited_nodes.append([round(self.env.now,1),order.middle_point,'m', order.name])
@@ -416,6 +416,8 @@ class Rider(object):
                             robot = robots[order.robot_name]
                             print('로봇{} {}에서 T: {}에 접선 예정; 고객:{} ; {}'.format(order.robot_name,  order.middle_point,order.middle_point_arrive_t,order.name, robot.onhand))
                             #input('로봇 확인2-1')
+                            order.org_last_store = Basic.distance(self.last_departure_loc[0],self.last_departure_loc[1], order.org_store_loc[0], order.org_store_loc[1])/self.speed
+                            order.org_last_m = move_t
                             if robot.run_process != None:
                                 if node_info[2] != order.middle_point:
                                     print(node_info[2] , order.middle_point)
@@ -457,7 +459,8 @@ class Rider(object):
                         print('T:{} 라이더{} 고객{}을 위해 가게 {} 도착'.format(int(env.now), self.name, customers[node_info[0]].name,customers[node_info[0]].store))
                         self.container.append(node_info[0])
                         print('라이더 {} 음식{} 적재'.format(self.name, node_info[0]))
-                        order.time_info[2] = env.now
+                        if order.robot == False:
+                            order.time_info[2] = env.now
                         order.time_info[8] = exp_store_arrive
                         order.who_serve.append([self.name, int(env.now),0])
                         exp_t_diff = env.now - self.exp_end_time_tem
@@ -1370,6 +1373,8 @@ class Customer(object):
         self.freeze = True
         self.v_middle_point_arrive_t = 0
         self.r_middle_point_arrive_t = 0
+        self.org_last_store = 0
+        self.org_last_m = 0
         env.process(self.CustomerLeave(env, platform))
 
     def CustomerLeave(self, env, platform):

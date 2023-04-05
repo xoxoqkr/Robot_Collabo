@@ -6,7 +6,8 @@ import random
 import numpy
 import math
 import time
-from MIP_Model import LinearizedCollaboProblem, LinearizedCollaboProblem2, PavoneRelocation
+from MIP_Model import LinearizedCollaboProblem, LinearizedCollaboProblem2, PavoneRelocation, PavoneRelocation2
+from RepositiongPart import RobotRelocate, PavoneInputCalculator, RelocateAlgo1, PavoneInputCalculator2, RelocateAlgo2
 import operator
 
 def distance(p1_x, p1_y, p2_x,p2_y):
@@ -531,14 +532,21 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
         if robot_relocate_rule in ['dist','#ct','pareto','random','None']:
             RobotRelocate(robot_relocate_rule, env, robot_names, robots, stores, used_robots, now_t=env.now)
         elif robot_relocate_rule in 'pavone':
-            c,v = PavoneInputCalculator(stores, robots, riders , now_t = env.now)
+            #c,v = PavoneInputCalculator(stores, robots, riders , now_t = env.now)
+            c, v = PavoneInputCalculator2(stores, robots, robot_names)
             print(c.shape)
             print(len(v), sum(v)/len(v))
-            input('문제 입력 값 확인 ;; {}'.format(c.shape))
-            res, res_x = PavoneRelocation(c, v, len(stores))
-            input('문제 풀이 확인 ; {}'.format(res))
+            print('문제 입력 값 확인 ;; {}'.format(c.shape))
+            #res, res_x = PavoneRelocation(c, v, len(stores))
+            res, res_x = PavoneRelocation2(c, v)
+            print('문제 풀이 확인 ; {}; {}'.format(res, res_x))
+            #input('해 확인')
             if res == True:
-                RelocateAlgo1(env, res_x, robots, stores, now_t = env.now)
+                #RelocateAlgo1(env, res_x, robots, stores, now_t = env.now)
+                RelocateAlgo2(env, res_x, robots, stores, robot_names)
+            else:
+                #input('reposition 에러 확인')
+                print('reposition 에러 확인')
         else:
             pass
         """
@@ -605,130 +613,6 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
             if task.freeze == True and task.gen_t < env.now:
                 task.freeze = False
 
-def RobotRelocate(method, env, robot_names, robots, stores, used_robots, now_t = 0):
-    store_order_count = []
-    for store_name in stores:
-        store_order_count.append(stores[store_name].got)
-    ave_num = sum(store_order_count)/len(store_order_count)
-    #1 로봇 점수 계산
-    for robot_name in robot_names:  # 현재 대기 중인 로봇 중 idle 상태(=마지막 위치가 m)인 로봇을 다시 가게 근처로 재 배치
-        robot = robots[robot_name]
-        # if robot.idle == True and robot.relocate == False and robot.visited_nodes[-1][2] == 'm':
-        if robot.idle == True and robot.relocate == False and robot.name not in used_robots and robot.run_process == None:
-            # store_name = random.choice(stores)
-            # store = stores[store_name]
-            store_scores = []  # 가장 가까운 가게로 로봇 재배치 #현재 가게라면, 더이상 움직이지 X?
-            ct_num = []
-            if robot.relocate_info[1] > now_t:  # 향하던 가게가 있다면, 해당 가게로 다시 출발 시키자
-                store_scores.append([robot.relocate_info[3],0, 0,0])
-            else:  # 현재 가게나 중간 지점에 있다면, 다른 가게로 보내 보자.
-                for store_name in stores:
-                    store = stores[store_name]
-                    store_scores.append(
-                        [store_name, distance(store.location[0], store.location[1], robot.loc[0], robot.loc[1]),
-                         len(store.received_orders),0])
-                    ct_num.append(len(store.received_orders))
-            if method == 'dist':
-                store_scores.sort(key=operator.itemgetter(1))
-            elif method == '#ct':  # 현재 주문이 가장 많은 가게로 이동
-                store_scores.sort(key=operator.itemgetter(2), reverse=True)
-            elif method == 'pareto':
-                pareto_scores = []
-                index1 = 0
-                for store_score1 in store_scores:
-                    tem = [store_score1[0], 0]
-                    for store_score2 in store_scores:
-                        if store_score1 != store_score2:
-                            if store_score1[1] < store_score2[1] and store_score1[2] > store_score2[2]:
-                                tem[1] += 1
-                    pareto_scores.append(tem)
-                    store_scores[index1][3] += tem[1]
-                    index1 += 1
-                pareto_scores.sort(key=operator.itemgetter(1), reverse=True)
-                store_scores.sort(key=operator.itemgetter(3), reverse=True)
-                #store_scores = [pareto_scores[0]]
-            elif method == 'random':
-                store_name = random.choice(list(range(len(stores))))
-                store_scores = [[stores[store_name].name]]
-            elif method == 'None':
-                continue
-            else:
-                input('robot_relocate_rule error : current rule : {}'.format(method))
-            for info in store_scores:
-                store_name = info[0]
-                if store_order_count[store_name] >= ave_num:
-                    store = stores[store_name]
-                    store_order_count[store_name] -= 1
-                    robot.run_process = env.process(robot.RobotReLocate(store))  # robot에 작업 할당
-                    break
-
-def PavoneInputCalculator(stores, robots, drivers, now_t = 0):
-    c = numpy.zeros((len(stores),len(stores)))
-    v = []
-    for i in stores:
-        store1 = stores[i].location
-        for j in stores:
-            store2 = stores[j].location
-            if i < j:
-                dist = distance(store1[0], store1[1], store2[0], store2[1])
-                c[i,j] = dist
-                c[j, i] = dist
-            elif i == j:
-                pass
-            else:
-                pass
-    store_infos = []
-    for i in stores:
-        store = stores[i]
-        tem = [store.name, 0,0, store.got, 0]
-        for j in drivers:
-            driver = drivers[j]
-            if store.name in driver.onhand:
-                tem[4] += 1
-        for j in robots:
-            robot = robots[j]
-            #print('PavoneInputCalculator',robot,robot.name, robot.relocate_info)
-            if robot.relocate_info[3] == store.name:
-                if robot.relocate_info[1] > now_t:
-                    tem[2] += 1
-                elif robot.idle == True:
-                    tem[1] += 1
-            #if robot.relocate_info[-1][1] > now_t and robot.relocate_info[-1][3] == store.name:
-            #    tem[2] += 1
-            #if robot.current_store == store.name:
-            #if robot.relocate_info[-1][1] <= now_t and robot.relocate_info[-1][3] == store.name:
-            #    tem[1] += 1
-        store_infos.append(tem)
-    for info in store_infos:
-        s_z = min(info[2] + info[3] - info[4],0)
-        v.append(max(info[1] + s_z , 0))
-    return c, v
-
-def RelocateAlgo1(env, x, robots, stores, now_t = 0):
-    tmp = []
-    for i in stores:
-        for j in stores:
-            if x[i,j] > 0:
-                tmp.append([i,j])
-    idle_robots = []
-    for robot_name in robots:
-        robot = robots[robot_name]
-        if robot.relocate_info[1] < now_t and robot.idle == True:
-            idle_robots.append(robot.name)
-    random.shuffle(tmp)
-    for _ in range(len(idle_robots)):
-        rs = random.choice(tmp)
-        r_dist = []
-        for robot_name in idle_robots:
-            robot_loc = robot.relocate_info[-1][2]
-            store_loc = stores[rs[1]].location
-            r_dist.append([robot_name, distance(store_loc[0],store_loc[1],robot_loc[0],robot_loc[1])])
-        if len(r_dist) > 0:
-            r_dist.sort(kep = operator.itemgetter(1))
-            robot = robots[r_dist[0][0]]
-            store = stores[rs[1]]
-            robot.run_process = env.process(robot.RobotReLocate(store))  # robot에 작업 할당
-            print('로봇 {} 가게 {}로 재배치 {}'.format(robot.name, store.name, robot.visited_nodes[-1]))
 
 
 def InstanceSave(stores, customers, riders, robots, title_info='',ite = 1, root = ''):
@@ -841,7 +725,7 @@ def ResultSave2(customers, drivers, robots, saved_title = '',dir_root= 'C:/Users
             else:
                 d_lead_time.append(customer.time_info[4] - customer.time_info[0])
                 d_pick_up_time.append(customer.time_info[1] - customer.time_info[0])
-            content = [customer.name] + customer.time_info[:5] + [customer.fee] + [customer.robot_t,customer.r_middle_point_arrive_t, customer.v_middle_point_arrive_t, customer.distance]
+            content = [customer.name] + customer.time_info[:5] + [customer.fee] + [customer.robot_t,customer.r_middle_point_arrive_t, customer.v_middle_point_arrive_t, customer.distance, customer.org_last_store, customer.org_last_m]
             customer_saves.append(content)
     customer_res = [d_lead_time,d_pick_up_time, r_lead_time ,r_pick_up_time,p_sync_time,n_sync_time]
     #라이더 부
@@ -871,7 +755,7 @@ def ResultSave2(customers, drivers, robots, saved_title = '',dir_root= 'C:/Users
         robot_dists.append([robot.name, dist])
         robot_saves.append([robot.name, robot.visited_nodes])
     save_type = ['/customers/','/drivers/','/robots/']
-    save_headers = ['name;gen_t;pickup_t;store_t;store_dep_t;arrive_t;fee;robot_t;r_m_arrive_t;v_m_arrive_t;OD_distance;\n','name;income;served#;robot_use;route;\n','name;route;\n']
+    save_headers = ['name;gen_t;pickup_t;store_t;customer_arrive_t;customer_serviced_t;fee;robot_t;r_m_arrive_t;v_m_arrive_t;OD_distance;last~store;last~m;\n','name;income;served#;robot_use;route;\n','name;route;\n']
     save_res = [customer_saves, driver_saves, robot_saves]
     sub_info = ';R;{};V;{};C;{};Vs;{};'.format(len(robots),len(drivers),len(customers),drivers[0].speed)
     if len(robots) > 0:

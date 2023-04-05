@@ -259,6 +259,31 @@ def PavoneRelocation(c,v,num_z,solver=-1, print_gurobi = True, timelimit = 1000)
         # res = printer(m.getVars(), [], len(drivers), len(customers))
         return False, []
 
+
+def PavoneRelocation2(c,w,solver=-1, print_gurobi = True, timelimit = 1000):
+    robots = list(range(c.shape[0]))
+    stores = list(range(c.shape[1]))
+    m = gp.Model("mip1")
+    u = m.addVars(c.shape[0], c.shape[1], vtype=GRB.BINARY, name="u")
+    m.setObjective(gp.quicksum(c[i, j] * u[i, j] for i in robots for j in stores), GRB.MINIMIZE)
+    m.addConstrs(gp.quicksum(u[j, i] for j in robots) >= w[i] for i in stores)
+    m.addConstrs(gp.quicksum(u[i, j] for j in stores) <= 1 for i in robots)
+    if print_gurobi == False:
+        m.setParam(GRB.Param.OutputFlag, 0)
+    m.setParam("LogFile2", 'log_test')
+    m.Params.method = solver  # -1은 auto dedection이며, 1~5에 대한 차이.
+    m.setParam("TimeLimit", timelimit)
+    m.optimize()
+    #print('Obj val: %g' % m.objVal, "Solver", solver)
+    try:
+        print('Obj val: %g' % m.objVal, "Solver", solver)
+        res_x = solution_var(m, 'u', length=2)
+        return True, res_x
+    except:
+        # print('Infeasible')
+        # res = printer(m.getVars(), [], len(drivers), len(customers))
+        return False, []
+
 def solution_var(model,name, length = 2):
     res = []
     for variable in [var for var in model.getVars() if name in var.VarName]: #이름이 제대로 풀력 되는지 확인 필요

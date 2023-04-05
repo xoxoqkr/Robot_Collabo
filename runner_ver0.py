@@ -3,29 +3,63 @@
 import time
 run_time = 120
 ITE_Start = 0
-ITE_End = 5
-driver_speeds = [3]
-robot_speeds = [2.5]
+ITE_End = 1
+driver_speeds = [2.5]
+robot_speeds = [1.5,2]
 robot_nums = [31]
 driver_nums = [21]
-robot_relocate_rules = ['dist','#ct','pareto','random','None']#['dist']#['dist','#ct','pareto','random','None']
-ins_types = ['Songpa', 'Dongjak']
+robot_relocate_rules = ['pavone']#['dist','#ct','pareto','random','None'] #['dist']#['dist','#ct','pareto','random','None']
+ins_types = ['Songpa','Dongjak']
 scenarios  = []
+
+
+"""
 for ins in ins_types:
     for i in driver_speeds:
         for l in driver_nums:
             for j in robot_speeds:
-                robot_nums = [31]
+                if ins == 'Sogpa':
+                    if j == 1.5:
+                        r_speed = 
+                    elif j == 2:
+                else:
+                #robot_nums = [31]
                 #for _ in range(1,2):
                 #    robot_nums.append(l + 5*_)
                 for k in robot_nums:
                     #if l < k <= l + 9:
                     for u in robot_relocate_rules:
                         scenarios.append([i,j,k,l,u,ins])
+"""
+
+#송파 만들기
+for i in [1.875]: #driver_speeds:
+    for l in driver_nums:
+        for j in [1.25,1.56]: #robot_speeds:
+            for k in robot_nums:
+                for u in robot_relocate_rules:
+                    scenarios.append([i,j,k,l,u,'Songpa'])
+                    if k == 0:
+                        break
+#동작 만들기
+"""
+for i in [2.14]: #driver_speeds:
+    for l in driver_nums:
+        for j in [1.42,1.78]: #robot_speeds:
+            for k in robot_nums:
+                for u in robot_relocate_rules:
+                    scenarios.append([i,j,k,l,u,'Dongjak'])
+                    if k == 0:
+                        break
+"""
+for i in scenarios:
+    print(i)
+input('확인')
+
 init = 0
 print(scenarios)
 print(len(scenarios)*(ITE_End))
-#input('개수 확인')
+input('개수 확인')
 for sc_info in scenarios:
     for ite in range(ITE_Start, ITE_End):
         start_time = time.time()

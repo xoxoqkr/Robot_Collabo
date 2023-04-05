@@ -44,7 +44,8 @@ root = 'C:/Users/박태준/PycharmProjects/Robot_Collabo/datas/'+ ins_type + '/'
 # run
 env = simpy.Environment()
 GenerateStoreByCSVStressTest(env, store_num, Platform2, Store_dict, store_type=instance_type, ITE=ite, dir = root+'store'+dir, customer_pend= False, warm_up_time = warm_up_time)
-RobotGenerator(env, Robot_dict, Store_dict, robot_speed = robot_speed, robot_num = robot_num + 1, dir = root+'robot'+dir) #robot 0은 더미 로봇임
+if robot_num > 0 :
+    RobotGenerator(env, Robot_dict, Store_dict, robot_speed = robot_speed, robot_num = robot_num + 1, dir = root+'robot'+dir) #robot 0은 더미 로봇임
 #RobotGenerator(env, Robot_dict, Store_dict, robot_speed = robot_speed, robot_num = robot_num, dir = 'store')
 env.process(RiderGenerator(env, Rider_dict, Platform2, Store_dict, Orders, Robot_dict, capacity=1,speed=rider_speed, working_duration=120, interval=0.01,gen_num=rider_num, dir = root+'driver'+dir))
 env.process(Ordergenerator(env, Orders, Store_dict,  customer_num,  Platform2, rider_speed = rider_speed, lamda= 0.5, warm_up_time = warm_up_time, dir = root+'customer'+dir, task_push= 'store'))
@@ -60,7 +61,7 @@ print(len(Store_dict),len(Robot_dict),len(Orders))
 #InstanceSave(Store_dict, Orders, Rider_dict, Robot_dict, title_info='',ite = ite, root = 'C:/Users/박태준/PycharmProjects/Robot_Collabo/datas/')
 
 
-ResultSave2(Orders, Rider_dict, Robot_dict, saved_title = 'ite;'+str(ite) + ';r_rule;' + robot_relocate_rule + ';ins' + ins_type)
+ResultSave2(Orders, Rider_dict, Robot_dict, saved_title = 'ite;'+str(ite) + ';r_rule;' + robot_relocate_rule + ';ins;' + ins_type + ';')
 res_c, res_d, res_r = ResultPrint2(Orders, Rider_dict, Robot_dict)
 
 
