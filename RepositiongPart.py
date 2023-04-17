@@ -41,7 +41,7 @@ def RobotRelocate(method, env, robot_names, robots, stores, used_robots, now_t =
     for robot_name in robot_names:  # 현재 대기 중인 로봇 중 idle 상태(=마지막 위치가 m)인 로봇을 다시 가게 근처로 재 배치
         robot = robots[robot_name]
         # if robot.idle == True and robot.relocate == False and robot.visited_nodes[-1][2] == 'm':
-        if robot.idle == True and robot.relocate == False and robot.name not in used_robots and robot.run_process == None:
+        if robot.idle == True and robot.relocate == False and robot.name not in used_robots and robot.run_process == None and robot.relocate == False:
             # store_name = random.choice(stores)
             # store = stores[store_name]
             store_scores = []  # 가장 가까운 가게로 로봇 재배치 #현재 가게라면, 더이상 움직이지 X?
@@ -212,8 +212,13 @@ def PavoneInputCalculator2(stores, robots, robot_names):
     sum_v = sum(v)
     weights = []
     for val in v:
-        w.append(int(len(r)*(val/sum_v)))
-        weights.append(val/sum_v)
+        if sum_v == 0:
+            weight = 1/len(stores)
+            w.append(0)
+        else:
+            weight = val/sum_v
+            w.append(int(len(r) * (val / sum_v)))
+        weights.append(weight)
     diff = len(r) - sum(w)
     if diff > 0:
         sampled = random.choices(range(len(v)), weights= weights, k = diff)#todo : 0405 더 detail한 계한 필요. 연구 노트 참고.

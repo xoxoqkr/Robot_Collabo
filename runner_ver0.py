@@ -3,7 +3,7 @@
 import time
 run_time = 120
 ITE_Start = 0
-ITE_End = 1
+ITE_End = 3
 driver_speeds = [2.5]
 robot_speeds = [1.5,2]
 robot_nums = [31]
@@ -11,7 +11,7 @@ driver_nums = [21]
 robot_relocate_rules = ['pavone']#['dist','#ct','pareto','random','None'] #['dist']#['dist','#ct','pareto','random','None']
 ins_types = ['Songpa','Dongjak']
 scenarios  = []
-
+battery_charge = True
 
 """
 for ins in ins_types:
@@ -35,7 +35,7 @@ for ins in ins_types:
 #송파 만들기
 for i in [1.875]: #driver_speeds:
     for l in driver_nums:
-        for j in [1.25,1.56]: #robot_speeds:
+        for j in [1.25,1.56]: #robot_speeds: [1.25,1.56]
             for k in robot_nums:
                 for u in robot_relocate_rules:
                     scenarios.append([i,j,k,l,u,'Songpa'])
@@ -67,7 +67,8 @@ for sc_info in scenarios:
         exec(open('Simulator_v1.py', encoding='UTF8').read(),
              globals().update(rider_speed = sc_info[0], robot_speed= sc_info[1],
                               robot_num = sc_info[2],rider_num = sc_info[3], ite = ite, dir = dir,
-                              robot_relocate_rule = sc_info[4], ins_type = sc_info[5] , run_time = run_time))
+                              robot_relocate_rule = sc_info[4], ins_type = sc_info[5] , run_time = run_time,
+                              battery_charge = battery_charge))
         end_time = time.time()
         f = open('C:/Users/박태준/PycharmProjects/Robot_Collabo/exp_log.txt','a')
         if init == 0:

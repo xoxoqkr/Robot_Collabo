@@ -20,6 +20,7 @@ global dir
 global robot_relocate_rule
 global run_time
 global ins_type
+global battery_charge
 """
 ite = 0
 rider_speed = 3
@@ -45,7 +46,7 @@ root = 'C:/Users/박태준/PycharmProjects/Robot_Collabo/datas/'+ ins_type + '/'
 env = simpy.Environment()
 GenerateStoreByCSVStressTest(env, store_num, Platform2, Store_dict, store_type=instance_type, ITE=ite, dir = root+'store'+dir, customer_pend= False, warm_up_time = warm_up_time)
 if robot_num > 0 :
-    RobotGenerator(env, Robot_dict, Store_dict, robot_speed = robot_speed, robot_num = robot_num + 1, dir = root+'robot'+dir) #robot 0은 더미 로봇임
+    RobotGenerator(env, Robot_dict, Store_dict, robot_speed = robot_speed, robot_num = robot_num + 1, dir = root+'robot'+dir, battery_charge = battery_charge) #robot 0은 더미 로봇임
 #RobotGenerator(env, Robot_dict, Store_dict, robot_speed = robot_speed, robot_num = robot_num, dir = 'store')
 env.process(RiderGenerator(env, Rider_dict, Platform2, Store_dict, Orders, Robot_dict, capacity=1,speed=rider_speed, working_duration=120, interval=0.01,gen_num=rider_num, dir = root+'driver'+dir))
 env.process(Ordergenerator(env, Orders, Store_dict,  customer_num,  Platform2, rider_speed = rider_speed, lamda= 0.5, warm_up_time = warm_up_time, dir = root+'customer'+dir, task_push= 'store'))

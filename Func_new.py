@@ -401,7 +401,7 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
             for robot_name in robots:
                 robot = robots[robot_name]
                 reloc = robot.RobotCurrentLoc()
-                if reloc != None and robot.relocate == True and robot.idle == True: #relocat 중지하기.
+                if reloc != None and robot.relocate == True and robot.idle == True and robot.charge == False: #relocat 중지하기.
                     print('재배치 취소 전; T ', env.now)
                     print(robot.relocate, robot.relocate_info, robot.visited_nodes[-1] )
                     robot.run_process.interrupt(robot.run_process)
@@ -496,7 +496,12 @@ def Platform_process6(env, platform, orders, riders, robots, stores, interval = 
                                     accept = True
                                     break
                         #print(accept,order_info)
-                        if accept == True and order_info != None:# and t_robot.idle == True:  # 플랫폼이 제안하는 주문이 1등 주문인 경우 # todo: 0315 해를 라이더에게 제안하는 과정 필요
+                        if accept == True and order_info != None :# and t_robot.idle == True:  # 플랫폼이 제안하는 주문이 1등 주문인 경우 # todo: 0315 해를 라이더에게 제안하는 과정 필요
+                            move_dist = distance(t_robot.loc[0],t_robot.loc[1],
+                                                 middle_point_set[int(input_M[m_key[0],m_key[1],m_key[2]])][0], middle_point_set[int(input_M[m_key[0],m_key[1],m_key[2]])][1])
+                            if t_robot.FeasibleCheck(move_dist) == False:
+                                print("not enough battery")
+                                continue
                             print('check14-1',m_key, type(input_M[m_key[0],m_key[1],m_key[2]]),input_M.shape)
                             t_order.middle_point = middle_point_set[int(input_M[m_key[0],m_key[1],m_key[2]])]
                             store_name = orders[task.customers[0]].store
@@ -748,14 +753,20 @@ def ResultSave2(customers, drivers, robots, saved_title = '',dir_root= 'C:/Users
     for robot_name in robots:
         robot = robots[robot_name]
         dist = 0
-        for index in range(1,len(robot.visited_nodes)):
-            bf = robot.visited_nodes[index - 1][1]
-            af = robot.visited_nodes[index][1]
+        locs = str(robot.check_route[0][1][0]) + ';' + str(robot.check_route[0][1][1]) + ';'
+        for index in range(1, len(robot.check_route)):
+        #for index in range(1,len(robot.visited_nodes)):
+            bf = robot.check_route[index - 1][1]
+            af = robot.check_route[index][1]
+            #bf = robot.visited_nodes[index - 1][1]
+            #af = robot.visited_nodes[index][1]
             dist += distance(bf[0],bf[1],af[0],af[1])
+            locs += str(af[0]) + ';' + str(af[1]) + ';'
         robot_dists.append([robot.name, dist])
-        robot_saves.append([robot.name, robot.visited_nodes])
+        #robot_saves.append([robot.name, robot.visited_nodes])
+        robot_saves.append([robot.name, dist, robot.check_route,len(robot.recharge_hist),robot.recharge_hist])
     save_type = ['/customers/','/drivers/','/robots/']
-    save_headers = ['name;gen_t;pickup_t;store_t;customer_arrive_t;customer_serviced_t;fee;robot_t;r_m_arrive_t;v_m_arrive_t;OD_distance;last~store;last~m;\n','name;income;served#;robot_use;route;\n','name;route;\n']
+    save_headers = ['name;gen_t;pickup_t;store_t;customer_arrive_t;customer_serviced_t;fee;robot_t;r_m_arrive_t;v_m_arrive_t;OD_distance;last~store;last~m;\n','name;income;served#;robot_use;route;\n','name;dist;route;recharge#;recharge_hist;\n']
     save_res = [customer_saves, driver_saves, robot_saves]
     sub_info = ';R;{};V;{};C;{};Vs;{};'.format(len(robots),len(drivers),len(customers),drivers[0].speed)
     if len(robots) > 0:

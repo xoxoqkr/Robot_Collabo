@@ -12,7 +12,7 @@ import numpy
 import matplotlib.pyplot as plt
 
 class robot(object):
-    def __init__(self, env, robot_name, speed = 1, init_loc = [25,25]):
+    def __init__(self, env, robot_name, stores, speed = 1, init_loc = [25,25], battery_charge = False):
         self.name = robot_name
         self.loc = init_loc
         self.env = env
@@ -25,6 +25,14 @@ class robot(object):
         self.relocate = False
         self.relocate_info = [0,0,init_loc,0]
         self.current_store = None
+        self.check_route = [[int(env.now),init_loc,'i']]
+        self.charge = False
+        self.desinged_dist = 60
+        self.battery_charge_t = 45
+        self.move_dist = 0
+        self.recharge_hist = []
+        if battery_charge == True:
+            env.process(self.BatteryManage(stores, interval = 5))
 
     def JobAssign(self, order, task):
         if self.visited_nodes[-1][2] in ['r','l']:
@@ -57,10 +65,13 @@ class robot(object):
         #order.time_info[2] = self.env.now
         if self.visited_nodes[-1][2] == 'l':
             self.visited_nodes.pop(-1)
-        self.visited_nodes.append([round(self.env.now,1),order.middle_point,'m', order.name])
+        added_info = [round(self.env.now,1),order.middle_point,'m', order.name]
+        self.visited_nodes.append(added_info)
+        self.check_route.append(added_info)
         self.loc = [order.middle_point[0], order.middle_point[1]]
         order.r_middle_point_arrive_t = self.env.now
         print('T:',int(self.env.now),'로봇',self.name,'주문',order.name,'도착',order.middle_point, self.visited_nodes[-2])
+        self.move_dist += Basic.distance(self.loc[0],self.loc[1], order.store_loc[0], order.store_loc[1]) + Basic.distance(order.store_loc[0], order.store_loc[1], order.middle_point[0], order.middle_point[1])
         #input('로봇 확인1')
         #라이더가 접선 후 풀어 주어야 함
 
@@ -69,11 +80,15 @@ class robot(object):
         print('T :{} 로봇 {} 가게 {} 재배치'.format(self.env.now, self.name,store.name))
         self.relocate = True
         move_t = Basic.distance(self.loc[0], self.loc[1], store.location[0],store.location[1])/self.speed
+        exp_t = self.env.now + move_t
         self.relocate_info = [self.env.now, self.env.now+move_t, store.location, store.name]
         try:
             yield self.env.timeout(move_t)
+            self.move_dist += Basic.distance(self.loc[0], self.loc[1], store.location[0],store.location[1])
             if self.relocate == True:
-                self.visited_nodes.append([round(self.env.now,1),store.location,'l', store.name])
+                added_info = [round(self.env.now,1),store.location,'l', store.name]
+                self.visited_nodes.append(added_info)
+                self.check_route.append(added_info)
                 self.loc = store.location
                 self.relocate = False
                 self.current_store = store.name
@@ -83,6 +98,7 @@ class robot(object):
         except simpy.Interrupt:
             print('방해됨!R;{};T;{}'.format(self.name, self.env.now))
             #del self.visited_nodes[-1]
+            self.move_dist += (exp_t - self.env.now + move_t)*self.speed
             pass
 
     def RobotCurrentLoc(self):
@@ -94,6 +110,10 @@ class robot(object):
             if self.env.now <= self.relocate_info[1]:
                 #ratio = (self.env.now - self.relocate_info[0])/(self.relocate_info[1] - self.env.now)
                 #ratio = (self.relocate_info[1] - self.relocate_info[0]) / (self.env.now - self.relocate_info[0])
+                if self.relocate_info[1] == self.relocate_info[0]:
+                    print(int(self.env.now), self.relocate_info)
+                    #input("재배치가 되지 않음")
+                    return self.relocate_info[2]
                 ratio = (self.env.now - self.relocate_info[0]) / (self.relocate_info[1] - self.relocate_info[0])
                 if ratio > 1:
                     print(ratio, self.relocate_info, self.env.now)
@@ -117,119 +137,45 @@ class robot(object):
         else:
             return None
 
-
-class robot2(object):
-    def __init__(self, env, robot_name, speed = 1, init_loc = [25,25], capacity = 1, end_t = 120):
-        self.name = robot_name
-        self.loc = init_loc
-        self.resource = simpy.Resource(env, capacity = capacity)
-        self.env = env
-        self.speed = speed
-        self.idle = True
-        self.visited_nodes = [[int(env.now),init_loc,'i']]
-        self.run_process = None
-        self.income = 0
-        self.onhand = None
-        self.relocate = False
-        self.relocate_info = [0,0,init_loc,0]
-        self.end_t = end_t
-
-
-    def RunProcess(self,env):
-        while int(env.now) < self.end_t:
-            with self.resource.request() as req:
-                yield req
-
-
-    def JobAssign(self, order, task):
-        if self.visited_nodes[-1][2] in ['r','l']:
-            print(self.visited_nodes)
-            print('idle?{} 로봇 {}'.format(self.idle, self.name))
-            #input('잘못 로봇 할당')
-        self.idle = False
-        self.visited_nodes.append([round(self.env.now,1), self.loc, 'a', order.name])
-        old_store_loc = copy.deepcopy(order.store_loc)
-        print('T:', int(self.env.now), '로봇', self.name, '할당', order.name)
-        t1 = Basic.distance(self.loc[0],self.loc[1], order.store_loc[0], order.store_loc[1])/self.speed + order.time_info[6]
-        t2 = Basic.distance(order.store_loc[0], order.store_loc[1], order.middle_point[0], order.middle_point[1]) / self.speed
-        self.onhand = order.name
-        order.robot = True
-        order.robot_name = self.name
-        order.middle_point_arrive_t = self.env.now + t1 + t2
-        order.store_loc = order.middle_point
-        order.time_info[1] = self.env.now #todo 0320: 로봇이나 차량이 이 주문을 잡은 시간을 표기
-        order.robot_t = self.env.now
-        task.route[0][2] = order.middle_point # task 정보 변경해 주기.
-        task.robot = True
-        task.robot_t = self.env.now
-        #task.fee += 40000 # 라이더들이 task를 선택하도록 만들기
-        yield self.env.timeout(t1)
-        if self.visited_nodes[-1][2] == 'l':
-            self.visited_nodes.pop(-1)
-        self.visited_nodes.append([round(self.env.now - order.time_info[6],1) ,old_store_loc,'r', order.name]) #도착한 시간
-        order.time_info[2] = self.env.now #가게 출발 시간
-        yield self.env.timeout(t2)
-        order.time_info[2] = self.env.now
-        if self.visited_nodes[-1][2] == 'l':
-            self.visited_nodes.pop(-1)
-        self.visited_nodes.append([round(self.env.now,1),order.middle_point,'m', order.name])
-        self.loc = [order.middle_point[0], order.middle_point[1]]
-        order.r_middle_point_arrive_t = self.env.now
-        print('T:',int(self.env.now),'로봇',self.name,'주문',order.name,'도착',order.middle_point, self.visited_nodes[-2])
-        #input('로봇 확인1')
-        #라이더가 접선 후 풀어 주어야 함
-
-
-    def RobotReLocate(self, store):
-        print('T :{} 로봇 {} 가게 {} 재배치'.format(self.env.now, self.name,store.name))
-        self.relocate = True
-        move_t = Basic.distance(self.loc[0], self.loc[1], store.location[0],store.location[1])/self.speed
-        self.relocate_info = [self.env.now, self.env.now+move_t, store.location, store.name]
-        try:
-            yield self.env.timeout(move_t)
-            if self.relocate == True:
-                self.visited_nodes.append([round(self.env.now,1),store.location,'l', store.name])
-                self.loc = store.location
-                self.relocate = False
-                print('로봇:{} 재배치 완료 ;T{}'.format(self.name, self.env.now))
-            else:
-                print('로봇:{}재배치 X ;T{}'.format(self.name, self.env.now))
-        except simpy.Interrupt:
-            print('방해됨!R;{};T;{}'.format(self.name, self.env.now))
-            #del self.visited_nodes[-1]
-            pass
-
-    def RobotCurrentLoc(self):
-        """
-        로봇의 현재의 위치를 물어 보는 함수.
-        @return:
-        """
-        if self.relocate == True:
-            if self.env.now <= self.relocate_info[1]:
-                #ratio = (self.env.now - self.relocate_info[0])/(self.relocate_info[1] - self.env.now)
-                #ratio = (self.relocate_info[1] - self.relocate_info[0]) / (self.env.now - self.relocate_info[0])
-                ratio = (self.env.now - self.relocate_info[0]) / (self.relocate_info[1] - self.relocate_info[0])
-                if ratio > 1:
-                    print(ratio, self.relocate_info, self.env.now)
-                    input('dist error1')
-                nodeA = self.visited_nodes[-1][1]
-                nodeB = self.relocate_info[2]
-                x_inc = (nodeB[0] - nodeA[0]) * ratio
-                y_inc = (nodeB[1] - nodeA[1]) * ratio
-                print(self.relocate_info, self.env.now)
-                print('재배치 정보',self.relocate_info, ratio, nodeA, nodeB, x_inc, y_inc)
-                x = round(nodeA[0] + x_inc,2)
-                y = round(nodeA[1] + y_inc,2)
-                if 0 <= x <= 50 and 0 <= y <= 50:
-                    pass
+    def BatteryManage(self, stores, interval = 5):
+        while True:
+            if self.move_dist/self.desinged_dist > 0.9:
+                self.idle = False
+                self.charge = True
+                #가장 가까운 가게로 이동
+                #충전 실시
+                current_loc = self.RobotCurrentLoc()
+                if current_loc == None: #현재 가게임
+                    current_loc = self.visited_nodes[-1][1]
                 else:
-                    print('x',x,'y',y)
-                    input('dist error2')
-                return [round(nodeA[0] + x_inc,2), round(nodeA[1] + y_inc,2)]
-            else:
-                return None
+                    store_dist = []
+                    for store_name in stores:
+                        store = stores[store_name]
+                        store_dist.append([store_name, Basic.distance(current_loc[0],current_loc[1],store.location[0], store.location[1])])
+                    store_dist.sort(key = operator.itemgetter(1))
+                    nearest_store_dist = store_dist[0][1]
+                    move_t = nearest_store_dist/self.speed
+                    print('robot {} will move to store {} at T{}'.format(self.name, store_dist[0][0], int(self.env.now)))
+                    yield self.env.timeout(move_t)
+                    print('robot {} arrived to store {} at T{}'.format(self.name, store_dist[0][0], int(self.env.now)))
+                self.env.process(self.Recharging())
+                self.idle = True
+            yield self.env.timeout(interval)
+            print('battery charge', self.move_dist)
+
+    def FeasibleCheck(self, move_dist):
+        if self.move_dist + move_dist < self.desinged_dist:
+            return True
         else:
-            return None
+            return False
+
+    def Recharging(self):
+        rechagre_t = self.battery_charge_t*(self.move_dist/self.desinged_dist)
+        print('Robot {} : charger start; T{}'.format(self.name, int(self.env.now)))
+        yield self.env.timeout(rechagre_t)
+        self.recharge_hist.append([int(self.env.now), rechagre_t/self.battery_charge_t])
+        self.move_dist = 0
+        print('Robot {} : charger done; T{}'.format(self.name, int(self.env.now)))
 
 
 class Order(object):

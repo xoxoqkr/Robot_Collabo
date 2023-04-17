@@ -1333,7 +1333,7 @@ def store_p2_reader(dir, ite = 0):
     return stores
 
 
-def RobotGenerator(env, robots, stores, robot_speed = 2, robot_num = 10, dir =None):
+def RobotGenerator(env, robots, stores, robot_speed = 2, robot_num = 10, dir =None, battery_charge = True):
     #  저장 순서  #;x;y;
     datas = []
     if dir != None and dir != 'store':
@@ -1358,4 +1358,4 @@ def RobotGenerator(env, robots, stores, robot_speed = 2, robot_num = 10, dir =No
             init_loc = store.location
         else:
             init_loc = [datas[count][1],datas[count][2]]
-        robots[count] = re_A1_class.robot(env, count, speed=robot_speed, init_loc=init_loc)
+        robots[count] = re_A1_class.robot(env, count, stores, speed=robot_speed, init_loc=init_loc, battery_charge = battery_charge)
